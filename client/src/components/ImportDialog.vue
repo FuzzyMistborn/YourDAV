@@ -19,6 +19,14 @@ function calendarNameFromIcs(ics: string, fallback: string): string {
   return name || fallback
 }
 
+// X-APPLE-CALENDAR-COLOR (also X-WR-CALCOLOR) is #RRGGBB or #RRGGBBAA; the
+// <input type="color"> only takes #rrggbb, so the alpha is dropped.
+function calendarColorFromIcs(ics: string): string | null {
+  const unfolded = ics.replace(/\r?\n[ \t]/g, '')
+  const match = /^X-(?:APPLE-CALENDAR-COLOR|WR-CALCOLOR)(?:;[^:\r\n]*)?:\s*(#[0-9a-f]{6})(?:[0-9a-f]{2})?\s*$/im.exec(unfolded)
+  return match ? match[1]!.toLowerCase() : null
+}
+
 const props = defineProps<{
   calendars: Calendar[]
   defaultCalendarId: string
@@ -39,9 +47,12 @@ const submitting = ref(false)
 const error = ref<string | null>(null)
 const resultText = ref<string | null>(null)
 
-function onFileChange(event: Event): void {
+async function onFileChange(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
   file.value = input.files?.[0] ?? null
+  if (!file.value) return
+  const color = calendarColorFromIcs(await file.value.text())
+  if (color) newColor.value = color
 }
 
 async function onSubmit(): Promise<void> {
