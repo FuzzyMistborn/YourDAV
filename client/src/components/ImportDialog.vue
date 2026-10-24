@@ -32,6 +32,8 @@ const emit = defineEmits<{ imported: []; close: [] }>()
 const writableCalendars = computed(() => props.calendars.filter((c) => !c.readOnly))
 
 const calendarId = ref(props.defaultCalendarId)
+// Same default as the sidebar's new-calendar swatch (CalendarList.vue).
+const newColor = ref('#0082c9')
 const file = ref<File | null>(null)
 const submitting = ref(false)
 const error = ref<string | null>(null)
@@ -52,7 +54,7 @@ async function onSubmit(): Promise<void> {
     let targetId = calendarId.value
     if (targetId === NEW_CALENDAR) {
       const fallback = file.value.name.replace(/\.[^.]+$/, '') || 'Imported calendar'
-      const created = await calendarsStore.create(calendarNameFromIcs(ics, fallback))
+      const created = await calendarsStore.create(calendarNameFromIcs(ics, fallback), newColor.value)
       targetId = created.id
       // Retarget so a second click imports into this calendar rather than
       // creating a duplicate.
@@ -84,6 +86,11 @@ async function onSubmit(): Promise<void> {
           <option :value="NEW_CALENDAR">New calendar (named from file)</option>
           <option v-for="cal in writableCalendars" :key="cal.id" :value="cal.id">{{ cal.displayName }}</option>
         </select>
+      </label>
+
+      <label v-if="calendarId === NEW_CALENDAR" class="field">
+        <span>Color</span>
+        <input v-model="newColor" type="color" class="color-input" />
       </label>
 
       <label class="field">
@@ -141,6 +148,12 @@ async function onSubmit(): Promise<void> {
   gap: 0.3rem;
   font-size: 0.8rem;
   color: var(--color-text-muted);
+}
+.color-input {
+  width: 3rem;
+  height: 2rem;
+  padding: 0.15rem;
+  cursor: pointer;
 }
 input,
 select {
