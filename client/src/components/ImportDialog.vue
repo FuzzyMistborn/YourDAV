@@ -19,6 +19,14 @@ function calendarNameFromIcs(ics: string, fallback: string): string {
   return name || fallback
 }
 
+// X-APPLE-CALENDAR-COLOR (also X-WR-CALCOLOR) is #RRGGBB or #RRGGBBAA; the
+// <input type="color"> only takes #rrggbb, so the alpha is dropped.
+function calendarColorFromIcs(ics: string): string | null {
+  const unfolded = ics.replace(/\r?\n[ \t]/g, '')
+  const match = /^X-(?:APPLE-CALENDAR-COLOR|WR-CALCOLOR)(?:;[^:\r\n]*)?:\s*(#[0-9a-f]{6})(?:[0-9a-f]{2})?\s*$/im.exec(unfolded)
+  return match ? match[1]!.toLowerCase() : null
+}
+
 const props = defineProps<{
   calendars: Calendar[]
   defaultCalendarId: string
@@ -32,14 +40,19 @@ const emit = defineEmits<{ imported: []; close: [] }>()
 const writableCalendars = computed(() => props.calendars.filter((c) => !c.readOnly))
 
 const calendarId = ref(props.defaultCalendarId)
+// Same default as the sidebar's new-calendar swatch (CalendarList.vue).
+const newColor = ref('#0082c9')
 const file = ref<File | null>(null)
 const submitting = ref(false)
 const error = ref<string | null>(null)
 const resultText = ref<string | null>(null)
 
-function onFileChange(event: Event): void {
+async function onFileChange(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
   file.value = input.files?.[0] ?? null
+  if (!file.value) return
+  const color = calendarColorFromIcs(await file.value.text())
+  if (color) newColor.value = color
 }
 
 async function onSubmit(): Promise<void> {
@@ -52,7 +65,7 @@ async function onSubmit(): Promise<void> {
     let targetId = calendarId.value
     if (targetId === NEW_CALENDAR) {
       const fallback = file.value.name.replace(/\.[^.]+$/, '') || 'Imported calendar'
-      const created = await calendarsStore.create(calendarNameFromIcs(ics, fallback))
+      const created = await calendarsStore.create(calendarNameFromIcs(ics, fallback), newColor.value)
       targetId = created.id
       // Retarget so a second click imports into this calendar rather than
       // creating a duplicate.
@@ -61,6 +74,9 @@ async function onSubmit(): Promise<void> {
     const result = await api.importIcs(targetId, ics)
     resultText.value = `Imported ${result.imported} of ${result.total} event${result.total === 1 ? '' : 's'}.`
     emit('imported')
+    // Close on a clean import; a partial failure stays open so the user can
+    // read the "Imported N of M" count.
+    if (result.imported === result.total) emit('close')
   } catch (err) {
     error.value = err instanceof ApiRequestError ? err.message : 'Failed to import file.'
   } finally {
@@ -81,6 +97,11 @@ async function onSubmit(): Promise<void> {
           <option :value="NEW_CALENDAR">New calendar (named from file)</option>
           <option v-for="cal in writableCalendars" :key="cal.id" :value="cal.id">{{ cal.displayName }}</option>
         </select>
+      </label>
+
+      <label v-if="calendarId === NEW_CALENDAR" class="field">
+        <span>Color</span>
+        <input v-model="newColor" type="color" class="color-input" />
       </label>
 
       <label class="field">
@@ -138,6 +159,12 @@ async function onSubmit(): Promise<void> {
   gap: 0.3rem;
   font-size: 0.8rem;
   color: var(--color-text-muted);
+}
+.color-input {
+  width: 3rem;
+  height: 2rem;
+  padding: 0.15rem;
+  cursor: pointer;
 }
 input,
 select {

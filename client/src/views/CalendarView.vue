@@ -875,10 +875,8 @@ const showImportDialog = ref(false)
 const showSettingsDialog = ref(false)
 
 function onImported(): void {
-  // Don't close the dialog here -- ImportDialog just set its own
-  // "Imported N of M events" result text in the same tick, and closing
-  // immediately hid it before the user could ever see it. The dialog's own
-  // Close button (@close) is how the user dismisses it now.
+  // ImportDialog closes itself on a fully successful import; after a partial
+  // failure it stays open to show its "Imported N of M events" text.
   void eventsStore.reloadLastRange()
 }
 
