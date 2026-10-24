@@ -12,6 +12,7 @@ import type {
   GroupMembersInput,
   GroupMembersResult,
   ImportResult,
+  LoginConfig,
   LoginRequest,
   OwnedShare,
   PendingShare,
@@ -79,6 +80,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   login: (body: LoginRequest) => request<SessionInfo>('/session', { method: 'POST', body: JSON.stringify(body) }),
+  loginConfig: () => request<LoginConfig>('/session/config'),
   logout: () => request<void>('/session', { method: 'DELETE' }),
   whoami: () => request<SessionInfo>('/session'),
   listCalendars: () => request<Calendar[]>('/calendars'),

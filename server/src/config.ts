@@ -19,6 +19,10 @@ export const config = {
   // SESSION_TTL_DAYS is expressed in days (not seconds) for readability;
   // converted here to the seconds the session/cookie logic below expects.
   sessionTtlSeconds: Number(process.env.SESSION_TTL_DAYS ?? 1) * 86400,
+  // Fixed DAV server for every login. When set, the login form hides its
+  // Server URL field and the server ignores any serverUrl the client sends,
+  // so users can't point this instance at a different host.
+  davServerUrl: process.env.DAV_SERVER_URL?.trim() || null,
   allowedDavHosts: process.env.ALLOWED_DAV_HOSTS
     ? process.env.ALLOWED_DAV_HOSTS.split(',').map((h) => h.trim())
     : null,

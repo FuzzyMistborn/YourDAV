@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ApiRequestError } from '../api.js'
+import { api, ApiRequestError } from '../api.js'
 import { useSessionStore } from '../stores/session.js'
 
 const session = useSessionStore()
@@ -11,6 +11,9 @@ const route = useRoute()
 const LAST_SERVER_URL_KEY = 'calendar.lastServerUrl'
 
 const serverUrl = ref(localStorage.getItem(LAST_SERVER_URL_KEY) ?? '')
+// Set when the server pins its DAV URL (DAV_SERVER_URL); the field is then
+// hidden and the server supplies the URL itself.
+const fixedServerUrl = ref(false)
 const username = ref('')
 const password = ref('')
 // Set by App.vue's session-expired handler (?expired=1) when a request
@@ -23,10 +26,30 @@ function hasScheme(url: string): boolean {
   return /^https?:\/\//i.test(url)
 }
 
+onMounted(async () => {
+  try {
+    fixedServerUrl.value = !!(await api.loginConfig()).serverUrl
+  } catch {
+    // Fall back to showing the field.
+  }
+})
+
 async function onSubmit(): Promise<void> {
   error.value = null
   submitting.value = true
   const trimmed = serverUrl.value.trim()
+
+  if (fixedServerUrl.value) {
+    try {
+      await session.login('', username.value, password.value)
+      await router.push({ name: 'calendar' })
+    } catch (err) {
+      error.value = err instanceof ApiRequestError ? err.message : 'Could not sign in. Please try again.'
+    } finally {
+      submitting.value = false
+    }
+    return
+  }
 
   // When the user didn't specify a scheme, try https first and fall back to
   // http -- the server folds connection failures and bad credentials into
@@ -65,16 +88,18 @@ async function onSubmit(): Promise<void> {
         </svg>
       </div>
       <h1>Sign in</h1>
-      <p class="login__hint">Connect with your CalDAV/CardDAV server address and account credentials.</p>
+      <p class="login__hint">
+        {{ fixedServerUrl ? 'Sign in with your account credentials.' : 'Connect with your CalDAV/CardDAV server address and account credentials.' }}
+      </p>
 
-      <label>
+      <label v-if="!fixedServerUrl">
         <span>Server URL</span>
         <input v-model="serverUrl" type="text" placeholder="dav.example.com (https:// assumed)" required />
       </label>
 
       <label>
         <span>Username</span>
-        <input v-model="username" type="text" autocomplete="username" required :autofocus="!!serverUrl" />
+        <input v-model="username" type="text" autocomplete="username" required :autofocus="fixedServerUrl || !!serverUrl" />
       </label>
 
       <label>

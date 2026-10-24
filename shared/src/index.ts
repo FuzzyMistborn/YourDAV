@@ -121,8 +121,13 @@ export interface SessionInfo {
   hasContacts: boolean
 }
 
+/** Pre-login settings; serverUrl is non-null when the admin fixed it via DAV_SERVER_URL. */
+export interface LoginConfig {
+  serverUrl: string | null
+}
+
 export interface LoginRequest {
-  serverUrl: string
+  serverUrl?: string
   username: string
   password: string
 }
