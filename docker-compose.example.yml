@@ -10,12 +10,15 @@ services:
       # "key must be 32 bytes".
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET to the output of `openssl rand -hex 32}
       # Comma-separated allowlist of CalDAV server hostnames this app is
-      # permitted to talk to -- see server/src/dav/hostAllowlist.ts. Unset
-      # (the default) allows any host, which is fine for a trusted personal
-      # instance but worth locking down if this is reachable more broadly.
+      # permitted to talk to (hostnames only, no scheme or port) -- see
+      # server/src/dav/hostAllowlist.ts. Unset (the default) allows any
+      # host, which is fine for a trusted personal instance but worth
+      # locking down if this is reachable more broadly.
       ALLOWED_DAV_HOSTS: ${ALLOWED_DAV_HOSTS:-}
       # Fixed DAV server URL; when set, the login page hides the Server URL
-      # field and all logins use this server.
+      # field and all logins use this server. Unlike ALLOWED_DAV_HOSTS this is
+      # a full URL -- the scheme is required (https://dav.example.com), and
+      # its hostname must be in ALLOWED_DAV_HOSTS if that is also set.
       DAV_SERVER_URL: ${DAV_SERVER_URL:-}
       # Set to true behind a reverse proxy so login rate limiting uses the
       # real client IP; leave false when exposed directly.
