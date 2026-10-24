@@ -2,6 +2,22 @@
 import type { Calendar } from '@yourdav/shared'
 import { computed, ref } from 'vue'
 import { api, ApiRequestError } from '../api.js'
+import { useCalendarsStore } from '../stores/calendars.js'
+
+const calendarsStore = useCalendarsStore()
+
+// Sentinel <select> value: create a calendar from the file's X-WR-CALNAME
+// (or its filename) instead of importing into an existing one.
+const NEW_CALENDAR = ''
+
+function calendarNameFromIcs(ics: string, fallback: string): string {
+  const unfolded = ics.replace(/\r?\n[ \t]/g, '')
+  const match = /^X-WR-CALNAME(?:;[^:\r\n]*)?:(.*)$/im.exec(unfolded)
+  const name = match?.[1]
+    ?.replace(/\\([nN,;\\])/g, (_, c: string) => (c === 'n' || c === 'N' ? ' ' : c))
+    .trim()
+  return name || fallback
+}
 
 const props = defineProps<{
   calendars: Calendar[]
@@ -33,7 +49,16 @@ async function onSubmit(): Promise<void> {
   submitting.value = true
   try {
     const ics = await file.value.text()
-    const result = await api.importIcs(calendarId.value, ics)
+    let targetId = calendarId.value
+    if (targetId === NEW_CALENDAR) {
+      const fallback = file.value.name.replace(/\.[^.]+$/, '') || 'Imported calendar'
+      const created = await calendarsStore.create(calendarNameFromIcs(ics, fallback))
+      targetId = created.id
+      // Retarget so a second click imports into this calendar rather than
+      // creating a duplicate.
+      calendarId.value = targetId
+    }
+    const result = await api.importIcs(targetId, ics)
     resultText.value = `Imported ${result.imported} of ${result.total} event${result.total === 1 ? '' : 's'}.`
     emit('imported')
   } catch (err) {
@@ -53,6 +78,7 @@ async function onSubmit(): Promise<void> {
       <label class="field">
         <span>Calendar</span>
         <select v-model="calendarId">
+          <option :value="NEW_CALENDAR">New calendar (named from file)</option>
           <option v-for="cal in writableCalendars" :key="cal.id" :value="cal.id">{{ cal.displayName }}</option>
         </select>
       </label>
@@ -62,15 +88,12 @@ async function onSubmit(): Promise<void> {
         <input type="file" accept=".ics,text/calendar" required @change="onFileChange" />
       </label>
 
-      <p v-if="writableCalendars.length === 0" class="dialog__error">
-        No writable calendar is available -- enable or create one first.
-      </p>
       <p v-if="error" class="dialog__error">{{ error }}</p>
       <p v-if="resultText" class="dialog__success">{{ resultText }}</p>
 
       <div class="dialog__actions">
         <button type="button" class="btn btn-ghost" @click="emit('close')">Close</button>
-        <button type="submit" class="btn btn-primary" :disabled="!file || submitting || writableCalendars.length === 0">
+        <button type="submit" class="btn btn-primary" :disabled="!file || submitting">
           {{ submitting ? 'Importing…' : 'Import' }}
         </button>
       </div>
