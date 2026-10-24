@@ -29,7 +29,6 @@ function calendarColorFromIcs(ics: string): string | null {
 
 const props = defineProps<{
   calendars: Calendar[]
-  defaultCalendarId: string
 }>()
 
 const emit = defineEmits<{ imported: []; close: [] }>()
@@ -39,7 +38,9 @@ const emit = defineEmits<{ imported: []; close: [] }>()
 // it as an import target at all.
 const writableCalendars = computed(() => props.calendars.filter((c) => !c.readOnly))
 
-const calendarId = ref(props.defaultCalendarId)
+// Defaults to creating a new calendar from the file; existing calendars are
+// opt-in from the dropdown.
+const calendarId = ref(NEW_CALENDAR)
 // Same default as the sidebar's new-calendar swatch (CalendarList.vue).
 const newColor = ref('#0082c9')
 const file = ref<File | null>(null)

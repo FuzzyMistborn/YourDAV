@@ -1042,7 +1042,6 @@ watch(enabledSubscriptionIds, (ids, oldIds) => {
     <ImportDialog
       v-if="showImportDialog"
       :calendars="calendarsStore.calendars"
-      :default-calendar-id="preferredDefaultCalendarId"
       @imported="onImported"
       @close="showImportDialog = false"
     />
