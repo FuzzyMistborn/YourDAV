@@ -36,6 +36,9 @@ services:
       # IANA zone name (e.g. America/New_York) the client pre-selects for a
       # new event, in place of each browser's own auto-detected zone --
       # unset (the default) leaves that browser-detection behavior alone.
+      # Fixed DAV server URL; when set, the login page hides the Server URL
+      # field and all logins use this server.
+      DAV_SERVER_URL: ${DAV_SERVER_URL:-}
       DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-}
       # NODE_ENV=production (baked into the image) marks the session
       # cookie Secure (server/src/session.ts) -- browsers will refuse to

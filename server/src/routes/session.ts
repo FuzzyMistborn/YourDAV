@@ -1,4 +1,4 @@
-import type { LoginRequest, SessionInfo } from '@yourdav/shared'
+import type { LoginConfig, LoginRequest, SessionInfo } from '@yourdav/shared'
 import rateLimit from '@fastify/rate-limit'
 import type { FastifyInstance } from 'fastify'
 import { config } from '../config.js'
@@ -20,7 +20,8 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
     '/',
     { config: { rateLimit: { max: config.loginRateLimitMax, timeWindow: '1 minute' } } },
     async (req, reply) => {
-      const { serverUrl, username, password } = req.body ?? {}
+      const { username, password } = req.body ?? {}
+      const serverUrl = config.davServerUrl ?? req.body?.serverUrl
       if (!serverUrl || !username || !password) {
         return reply
           .code(400)
@@ -61,6 +62,12 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(201).send(info)
     },
   )
+
+  // Unauthenticated: the login page needs it before there is a session.
+  app.get('/config', async (_req, reply) => {
+    const body: LoginConfig = { serverUrl: config.davServerUrl }
+    return reply.send(body)
+  })
 
   app.get('/', async (req, reply) => {
     const dav = req.session.get('dav')
