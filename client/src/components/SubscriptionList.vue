@@ -68,6 +68,26 @@ function submitHolidays(): void {
   addingHolidays.value = false
 }
 
+// Inline edit of one subscription's name and (for real feeds) URL. Built-in
+// holiday calendars have a generated `holidays:` URL, so only their name is editable.
+const editingId = ref<string | null>(null)
+const editName = ref('')
+const editUrl = ref('')
+const editNameInput = ref<HTMLInputElement[] | null>(null)
+const editingIsHoliday = computed(() => editUrl.value.startsWith('holidays:'))
+function startEdit(sub: { id: string; name: string; url: string }): void {
+  editingId.value = sub.id
+  editName.value = sub.name
+  editUrl.value = sub.url
+  // The input only exists after v-if re-renders, and it's inside a v-for (so the ref is an array).
+  void nextTick(() => editNameInput.value?.[0]?.select())
+}
+function submitEdit(): void {
+  if (!editingId.value || !editName.value.trim() || !editUrl.value.trim()) return
+  store.update(editingId.value, { name: editName.value.trim(), url: editUrl.value.trim() })
+  editingId.value = null
+}
+
 const confirmingRemove = ref<{ id: string; name: string } | null>(null)
 
 function onRemoveClick(id: string, name: string): void {
@@ -119,7 +139,16 @@ function confirmRemove(): void {
     </form>
 
     <ul>
-      <li v-for="sub in store.subscriptions" :key="sub.id" class="subscription-list__item">
+      <li v-for="sub in store.subscriptions" :key="sub.id" :class="editingId === sub.id ? 'subscription-list__editing' : 'subscription-list__item'">
+        <form v-if="editingId === sub.id" class="subscription-list__form" @submit.prevent="submitEdit">
+          <input ref="editNameInput" v-model="editName" type="text" placeholder="Name" required />
+          <input v-if="!editingIsHoliday" v-model="editUrl" type="url" placeholder="https:// or webcal:// URL" required />
+          <div class="subscription-list__form-actions">
+            <button type="button" class="btn btn-ghost" @click="editingId = null">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+        <template v-else>
         <label class="subscription-list__toggle">
           <input type="checkbox" :checked="store.enabled[sub.id]" @change="store.toggle(sub.id)" />
           <span class="subscription-list__name">{{ sub.name }}</span>
@@ -132,9 +161,11 @@ function confirmRemove(): void {
           :title="`Color for ${sub.name}`"
           @input="onColorInput(sub.id, $event)"
         />
+        <button type="button" class="icon-edit-btn" title="Edit" @click="startEdit(sub)">✎</button>
         <button type="button" class="icon-remove-btn" title="Remove" @click="onRemoveClick(sub.id, sub.name)">
           ×
         </button>
+        </template>
       </li>
       <li v-if="store.subscriptions.length === 0" class="subscription-list__empty">No subscriptions yet.</li>
     </ul>
@@ -223,6 +254,20 @@ ul {
   gap: 0.35rem;
   padding: 0.2rem 0.5rem;
   border-radius: var(--radius-sm);
+}
+.icon-edit-btn {
+  flex-shrink: 0;
+  padding: 0 0.3rem;
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-faint);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.icon-edit-btn:hover {
+  color: var(--color-text);
 }
 .subscription-list__item:hover {
   background: var(--color-surface-hover);

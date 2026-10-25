@@ -887,15 +887,22 @@ function onImported(): void {
 const AUTO_REFRESH_MS = 5 * 60 * 1000
 let autoRefreshTimer: ReturnType<typeof setInterval> | undefined
 
+// Also re-reads the calendar list itself, so a calendar the owner renamed (or
+// shared/unshared) shows up for a recipient without a manual reload.
+function refreshInBackground(): void {
+  void calendarsStore.load().catch(() => {})
+  void loadVisibleRange()
+}
+
 function onVisibilityChange(): void {
-  if (document.visibilityState === 'visible') void loadVisibleRange()
+  if (document.visibilityState === 'visible') refreshInBackground()
 }
 
 onMounted(async () => {
   window.addEventListener('keydown', onGlobalKeydown)
   document.addEventListener('visibilitychange', onVisibilityChange)
   autoRefreshTimer = setInterval(() => {
-    if (document.visibilityState === 'visible') void loadVisibleRange()
+    if (document.visibilityState === 'visible') refreshInBackground()
   }, AUTO_REFRESH_MS)
   void subscriptionsStore.init()
   await calendarsStore.load()
@@ -925,7 +932,7 @@ watch(enabledCalendarIds, (ids, oldIds) => {
 // new subscription's events until the next date navigation, so a newly
 // added (or re-enabled) subscription silently shows no events.
 const enabledSubscriptionIds = computed(() =>
-  subscriptionsStore.subscriptions.filter((s) => subscriptionsStore.enabled[s.id]).map((s) => s.id),
+  subscriptionsStore.subscriptions.filter((s) => subscriptionsStore.enabled[s.id]).map((s) => `${s.id}|${s.url}`),
 )
 watch(enabledSubscriptionIds, (ids, oldIds) => {
   if (ids.length !== oldIds.length || ids.some((id, i) => id !== oldIds[i])) {

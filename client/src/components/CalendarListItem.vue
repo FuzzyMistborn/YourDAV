@@ -6,7 +6,7 @@ import { triggerDownload } from '../lib/download.js'
 import { useCalendarsStore } from '../stores/calendars.js'
 
 defineProps<{ cal: Calendar }>()
-const emit = defineEmits<{ share: [id: string, name: string]; rename: [id: string, name: string, color: string] }>()
+const emit = defineEmits<{ share: [id: string, name: string]; rename: [id: string, name: string, color: string, shared: boolean] }>()
 
 const store = useCalendarsStore()
 const menuOpen = ref(false)
@@ -35,7 +35,7 @@ function onExportClick(cal: Calendar): void {
 
 function onRenameClick(cal: Calendar): void {
   closeMenu()
-  emit('rename', cal.id, cal.displayName, cal.color)
+  emit('rename', cal.id, cal.displayName, cal.color, cal.isShared)
 }
 
 function onShareClick(cal: Calendar): void {
@@ -99,7 +99,7 @@ function onResetColorClick(id: string): void {
     <div class="calendar-list__menu-wrap">
       <button type="button" class="calendar-list__menu-btn" title="More options" @click="toggleMenu">⋯</button>
       <ul v-if="menuOpen" class="calendar-list__menu">
-        <li v-if="!cal.isShared">
+        <li>
           <button type="button" @click="onRenameClick(cal)">✎ Rename</button>
         </li>
         <li v-if="!cal.isShared">

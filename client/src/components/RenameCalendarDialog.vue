@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { ApiRequestError } from '../api.js'
 import { useCalendarsStore } from '../stores/calendars.js'
 
-const props = defineProps<{ calendarId: string; calendarName: string; calendarColor: string }>()
+const props = defineProps<{ calendarId: string; calendarName: string; calendarColor: string; shared?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 
 const store = useCalendarsStore()
 const displayName = ref(props.calendarName)
 const color = ref(props.calendarColor)
+const nameInput = ref<HTMLInputElement | null>(null)
+onMounted(() => void nextTick(() => nameInput.value?.select()))
 const submitting = ref(false)
 const error = ref<string | null>(null)
 
@@ -17,7 +19,13 @@ async function submit(): Promise<void> {
   submitting.value = true
   error.value = null
   try {
-    await store.renameCalendar(props.calendarId, { displayName: displayName.value.trim(), color: color.value })
+    // A recipient only renames their own copy; color is the owner's.
+    await store.renameCalendar(
+      props.calendarId,
+      props.shared
+        ? { displayName: displayName.value.trim() }
+        : { displayName: displayName.value.trim(), color: color.value },
+    )
     emit('close')
   } catch (err) {
     error.value = err instanceof ApiRequestError ? err.message : 'Failed to update calendar'
@@ -30,14 +38,15 @@ async function submit(): Promise<void> {
 <template>
   <div class="overlay" @click.self="emit('close')">
     <div class="dialog">
-      <h2>Rename calendar</h2>
+      <h2>{{ shared ? 'Rename shared calendar' : 'Rename calendar' }}</h2>
 
       <form @submit.prevent="submit">
         <label class="dialog__field">
           <span>Name</span>
-          <input v-model="displayName" type="text" autofocus />
+          <input ref="nameInput" v-model="displayName" type="text" />
         </label>
-        <label class="dialog__field">
+        <p v-if="shared" class="dialog__hint">Only changes the name you see; the owner's calendar keeps its name.</p>
+        <label v-if="!shared" class="dialog__field">
           <span>Color</span>
           <input v-model="color" type="color" class="dialog__swatch" />
         </label>
@@ -116,6 +125,11 @@ async function submit(): Promise<void> {
 .dialog__swatch::-moz-color-swatch {
   border: none;
   border-radius: 50%;
+}
+.dialog__hint {
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem;
+  color: var(--color-text-faint);
 }
 .dialog__error {
   margin: 0 0 0.75rem;
