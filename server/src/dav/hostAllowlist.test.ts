@@ -30,6 +30,22 @@ describe('assertHostAllowed', () => {
     const { assertHostAllowed, DisallowedHostError } = await import('./hostAllowlist.js')
     expect(() => assertHostAllowed('https://evil.example.com/dav/')).toThrow(DisallowedHostError)
   })
+
+  it('pins scheme and port when an entry is a full origin', async () => {
+    process.env.ALLOWED_DAV_HOSTS = 'https://caldav.example.com:8443'
+    vi.resetModules()
+    const { assertHostAllowed, DisallowedHostError } = await import('./hostAllowlist.js')
+    expect(() => assertHostAllowed('https://caldav.example.com:8443/dav/')).not.toThrow()
+    expect(() => assertHostAllowed('https://caldav.example.com/dav/')).toThrow(DisallowedHostError)
+    expect(() => assertHostAllowed('http://caldav.example.com:8443/dav/')).toThrow(DisallowedHostError)
+  })
+
+  it('rejects non-http(s) schemes even without an allowlist', async () => {
+    delete process.env.ALLOWED_DAV_HOSTS
+    vi.resetModules()
+    const { assertHostAllowed, DisallowedHostError } = await import('./hostAllowlist.js')
+    expect(() => assertHostAllowed('ftp://caldav.example.com/')).toThrow(DisallowedHostError)
+  })
 })
 
 describe('assertHrefSameHost', () => {

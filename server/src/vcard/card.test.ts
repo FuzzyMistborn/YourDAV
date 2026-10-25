@@ -183,6 +183,12 @@ describe('text escaping', () => {
     expect(out).toContain(String.raw`NOTE:a\\b\;c\,d\ne`)
     expect(vcardToContact(out, 'a', 'i', 'h', 'e').notes).toBe(notes)
   })
+
+  it('escapes a lone carriage return so it cannot inject a content line', () => {
+    const out = applyContactInput(null, { ...emptyContactInput(), org: 'X', notes: 'a\rTEL:555' })
+    expect(out).toContain(String.raw`NOTE:a\nTEL:555`)
+    expect(out).not.toMatch(/\r(?!\n)/)
+  })
 })
 
 describe('renameCategory', () => {
