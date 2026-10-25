@@ -2,6 +2,7 @@ import type { CalendarObject, TimeRange } from '@yourdav/shared'
 import { createHash } from 'node:crypto'
 import ICAL from 'ical.js'
 import { safeFetchExternal } from '../dav/ssrf.js'
+import { fetchHolidayEvents, isHolidayUrl } from './holidays.js'
 import { expandCalendarObject } from './recurrence.js'
 import { registerEmbeddedTimezones } from './timezones.js'
 
@@ -53,6 +54,8 @@ export function subscriptionCalendarId(url: string): string {
  * placeholder is used; these events are never written back anywhere.
  */
 export async function fetchSubscriptionEvents(url: string, range: TimeRange): Promise<CalendarObject[]> {
+  // Built-in holiday calendars (`holidays:US`) are generated, not fetched.
+  if (isHolidayUrl(url)) return fetchHolidayEvents(url, range)
   const normalized = normalizeUrl(url)
   const { text } = await safeFetchExternal(normalized, { headers: { Accept: 'text/calendar' } })
   const calendarId = subscriptionCalendarId(url)

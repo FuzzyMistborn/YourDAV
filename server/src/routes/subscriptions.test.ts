@@ -199,3 +199,26 @@ describe('stored subscription list (GET/PUT /api/subscriptions)', () => {
     expect(res.statusCode).toBe(501)
   })
 })
+
+describe('holiday calendars over HTTP', () => {
+  it('lists the countries', async () => {
+    const res = await (await buildApp()).inject({ method: 'GET', url: '/api/subscriptions/holiday-countries' })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().some((c: { code: string }) => c.code === 'US')).toBe(true)
+  })
+
+  it('401s the country list when unauthenticated', async () => {
+    const res = await (await buildApp({ authenticated: false })).inject({ method: 'GET', url: '/api/subscriptions/holiday-countries' })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('accepts a holidays: URL for events (not rejected as a non-http protocol)', async () => {
+    fetchSubscriptionEvents.mockResolvedValue([])
+    const res = await (await buildApp()).inject({
+      method: 'GET',
+      url: '/api/subscriptions/events?url=holidays%3AUS&start=2026-01-01T00:00:00.000Z&end=2026-02-01T00:00:00.000Z',
+    })
+    expect(res.statusCode).toBe(200)
+    expect(fetchSubscriptionEvents).toHaveBeenCalledWith('holidays:US', expect.anything())
+  })
+})

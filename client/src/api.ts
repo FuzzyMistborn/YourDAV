@@ -169,6 +169,7 @@ export const api = {
     request<{ subscriptions: StoredSubscription[] | null }>('/subscriptions'),
   putStoredSubscriptions: (subscriptions: StoredSubscription[]) =>
     request<void>('/subscriptions', { method: 'PUT', body: JSON.stringify({ subscriptions }) }),
+  getHolidayCountries: () => request<{ code: string; name: string }[]>('/subscriptions/holiday-countries'),
   getSubscriptionEvents: (url: string, start: string, end: string) =>
     request<CalendarObject[]>(
       `/subscriptions/events?url=${encodeURIComponent(url)}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
