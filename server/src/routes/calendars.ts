@@ -19,7 +19,7 @@ import { DAV_WRITE_CONCURRENCY, mapConcurrent } from '../concurrency.js'
 import { config } from '../config.js'
 import { calendarObjectToIcs } from '../ical/mapper.js'
 import { eventFieldsError, timeRangeError } from '../ical/validate.js'
-import { decodeId } from '../store/idCodec.js'
+import { decodeUrlId } from '../store/idCodec.js'
 import { EtagConflictError } from '../store/errors.js'
 import type { RawObject } from '../store/CalendarStore.js'
 import { store } from '../store/index.js'
@@ -68,7 +68,7 @@ async function loadOwnedRawObject(
   uid: string,
   reply: FastifyReply,
 ): Promise<RawObject | null> {
-  const calendarUrl = decodeId(calendar.id)
+  const calendarUrl = decodeUrlId(calendar.id)
   assertHrefSameHost(dav.baseUrl, href)
   // Normalize the collection path to a trailing slash so the prefix test
   // is a real segment-boundary check: without it, a collection URL served
@@ -145,7 +145,7 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(403).send({ error: 'forbidden', message: 'Only the calendar owner can manage its shares' })
     }
 
-    const calendarUrl = decodeId(req.params.id)
+    const calendarUrl = decodeUrlId(req.params.id)
     assertHrefSameHost(dav.baseUrl, calendarUrl)
 
     try {

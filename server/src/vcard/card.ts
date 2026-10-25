@@ -89,16 +89,30 @@ function displayName(fn: string, n: StructuredName, org: string): string {
   return assembled || org
 }
 
+/** Largest photo, in decoded bytes, that is ever read back out of a stored card. */
+export const MAX_PHOTO_BYTES = 2 * 1024 * 1024
+
+function decodePhoto(base64: string): Buffer | null {
+  // Check before decoding so an oversized stored value never gets allocated.
+  if (base64.length > Math.ceil((MAX_PHOTO_BYTES * 4) / 3) + 4) return null
+  const data = Buffer.from(base64, 'base64')
+  return data.byteLength > MAX_PHOTO_BYTES ? null : data
+}
+
 export function photoOf(props: VProp[]): { mime: string; data: Buffer } | null {
   const p = first(props, 'PHOTO')
   if (!p) return null
   const dataUri = /^data:([^;,]+)(?:;[^,]*)?;base64,(.*)$/is.exec(p.value)
-  if (dataUri) return { mime: dataUri[1], data: Buffer.from(dataUri[2], 'base64') }
+  if (dataUri) {
+    const data = decodePhoto(dataUri[2])
+    return data && { mime: dataUri[1], data }
+  }
   const encoding = (p.params.ENCODING ?? []).join(',').toLowerCase()
   if (encoding === 'b' || encoding === 'base64') {
     const type = (p.params.TYPE ?? ['jpeg'])[0].toLowerCase()
     const mime = type.includes('/') ? type : `image/${type === 'jpg' ? 'jpeg' : type}`
-    return { mime, data: Buffer.from(p.value, 'base64') }
+    const data = decodePhoto(p.value)
+    return data && { mime, data }
   }
   return null
 }

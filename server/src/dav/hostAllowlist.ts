@@ -1,4 +1,5 @@
 import { config } from '../config.js'
+import { InvalidIdError } from '../store/errors.js'
 
 export class DisallowedHostError extends Error {}
 
@@ -20,7 +21,12 @@ export function assertHostAllowed(serverUrl: string): void {
  */
 export function assertHrefSameHost(baseUrl: string, href: string): void {
   const base = new URL(baseUrl)
-  const target = new URL(href, baseUrl)
+  let target: URL
+  try {
+    target = new URL(href, baseUrl)
+  } catch {
+    throw new InvalidIdError(`Malformed href "${href}"`)
+  }
   // Origin, not just hostname: a same-host URL on a different port or
   // protocol (e.g. http:// instead of https://, or an internal port
   // exposed on the same box) would otherwise pass this check and still

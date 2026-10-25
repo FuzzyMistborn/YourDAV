@@ -7,7 +7,7 @@ import { assertHrefSameHost } from '../dav/hostAllowlist.js'
 import { isCollectionReadOnly } from '../dav/privileges.js'
 import type { ContactStore, RawCard } from './ContactStore.js'
 import { ContactNotFoundError, EtagConflictError, ForbiddenError } from './errors.js'
-import { decodeId, encodeId } from './idCodec.js'
+import { decodeUrlId, encodeId } from './idCodec.js'
 
 function withSlash(url: string): string {
   return url.endsWith('/') ? url : `${url}/`
@@ -21,14 +21,14 @@ export function hrefInBook(bookUrl: string, href: string): boolean {
 
 export class DavContactStore implements ContactStore {
   private async book(ctx: DavContext, addressBookId: string): Promise<DAVAddressBook> {
-    const url = decodeId(addressBookId)
+    const url = decodeUrlId(addressBookId)
     assertHrefSameHost(ctx.baseUrl, url)
     return { url } as DAVAddressBook
   }
 
   private checkHref(ctx: DavContext, addressBookId: string, href: string): void {
     assertHrefSameHost(ctx.baseUrl, href)
-    if (!hrefInBook(decodeId(addressBookId), href)) {
+    if (!hrefInBook(decodeUrlId(addressBookId), href)) {
       throw new ForbiddenError('Contact does not belong to this address book')
     }
   }
@@ -74,7 +74,7 @@ export class DavContactStore implements ContactStore {
   }
 
   async deleteAddressBook(ctx: DavContext, addressBookId: string): Promise<void> {
-    const url = decodeId(addressBookId)
+    const url = decodeUrlId(addressBookId)
     assertHrefSameHost(ctx.baseUrl, url)
     const response = await davFetch(ctx, url, { method: 'DELETE' })
     if (!response.ok) throw new Error(`Failed to delete address book: ${response.status} ${response.statusText}`)
@@ -117,7 +117,7 @@ export class DavContactStore implements ContactStore {
     if (!response.ok) {
       throw new Error(`Failed to create contact: ${response.status} ${response.statusText}`)
     }
-    const href = new URL(filename, withSlash(decodeId(addressBookId))).toString()
+    const href = new URL(filename, withSlash(decodeUrlId(addressBookId))).toString()
     return { href, etag: response.headers.get('etag') ?? '', vcard }
   }
 

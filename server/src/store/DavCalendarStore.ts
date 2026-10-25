@@ -25,7 +25,7 @@ import { icsToCalendarObject } from '../ical/mapper.js'
 import { expandCalendarObject } from '../ical/recurrence.js'
 import type { CalendarStore, ObjectRef, RawObject, RawObjectWithHref } from './CalendarStore.js'
 import { EtagConflictError } from './errors.js'
-import { decodeId, encodeId } from './idCodec.js'
+import { decodeUrlId, encodeId } from './idCodec.js'
 
 export class DavCalendarStore implements CalendarStore {
   async discoverCalendars(ctx: DavContext): Promise<Calendar[]> {
@@ -113,7 +113,7 @@ export class DavCalendarStore implements CalendarStore {
   }
 
   async updateCalendar(ctx: DavContext, calendarId: string, input: UpdateCalendarInput): Promise<Calendar> {
-    const url = decodeId(calendarId)
+    const url = decodeUrlId(calendarId)
     assertHrefSameHost(ctx.baseUrl, url)
 
     // No tsdav helper exists for PROPPATCH -- hand-rolled the same way
@@ -173,7 +173,7 @@ export class DavCalendarStore implements CalendarStore {
 
   async getEvents(ctx: DavContext, calendarId: string, range: TimeRange): Promise<CalendarObject[]> {
     const client = await createClient(ctx)
-    const url = decodeId(calendarId)
+    const url = decodeUrlId(calendarId)
     assertHrefSameHost(ctx.baseUrl, url)
 
     const objects = await client.fetchCalendarObjects({
@@ -227,7 +227,7 @@ export class DavCalendarStore implements CalendarStore {
 
   async syncCalendar(ctx: DavContext, calendarId: string, syncToken?: string): Promise<SyncResult> {
     const client = await createClient(ctx)
-    const url = decodeId(calendarId)
+    const url = decodeUrlId(calendarId)
     assertHrefSameHost(ctx.baseUrl, url)
 
     const result = await client.smartCollectionSync({
@@ -263,7 +263,7 @@ export class DavCalendarStore implements CalendarStore {
 
   async createObject(ctx: DavContext, calendarId: string, ics: string): Promise<CalendarObject> {
     const client = await createClient(ctx)
-    const url = decodeId(calendarId)
+    const url = decodeUrlId(calendarId)
     assertHrefSameHost(ctx.baseUrl, url)
     const filename = `${crypto.randomUUID()}.ics`
 
@@ -316,7 +316,7 @@ export class DavCalendarStore implements CalendarStore {
   }
 
   async deleteCalendar(ctx: DavContext, calendarId: string): Promise<void> {
-    const url = decodeId(calendarId)
+    const url = decodeUrlId(calendarId)
     assertHrefSameHost(ctx.baseUrl, url)
     const response = await davFetch(ctx, url, { method: 'DELETE' })
     if (!response.ok) {
@@ -335,7 +335,7 @@ export class DavCalendarStore implements CalendarStore {
   }
 
   async unsubscribeCalendar(ctx: DavContext, calendarId: string): Promise<UnsubscribeResult> {
-    const url = decodeId(calendarId)
+    const url = decodeUrlId(calendarId)
     assertHrefSameHost(ctx.baseUrl, url)
     return unsubscribeFromCalendar(ctx, url)
   }

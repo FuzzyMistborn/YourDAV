@@ -4,6 +4,7 @@ import {
   editCategories,
   emptyContactInput,
   ensureUid,
+  MAX_PHOTO_BYTES,
   photoFromCard,
   renameCategory,
   replaceUid,
@@ -255,5 +256,18 @@ describe('replaceUid', () => {
   it('adds a UID when the card has none', () => {
     const out = replaceUid('BEGIN:VCARD\r\nVERSION:3.0\r\nFN:X\r\nEND:VCARD\r\n', 'n1')
     expect(out).toContain('UID:n1')
+  })
+})
+
+describe('photoOf size limit', () => {
+  const card = (b64: string): string => `BEGIN:VCARD\r\nVERSION:3.0\r\nFN:A\r\nPHOTO;ENCODING=b;TYPE=JPEG:${b64}\r\nEND:VCARD\r\n`
+
+  it('returns a small photo', () => {
+    expect(photoFromCard(card(Buffer.from('hello').toString('base64')))?.data.toString()).toBe('hello')
+  })
+
+  it('ignores a stored photo over the size limit', () => {
+    const big = Buffer.alloc(MAX_PHOTO_BYTES + 1).toString('base64')
+    expect(photoFromCard(card(big))).toBeNull()
   })
 })
