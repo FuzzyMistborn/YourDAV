@@ -20,6 +20,8 @@ services:
       # Login attempts per client IP per minute, and the timeout (ms) on any
       # single outbound request.
       LOGIN_RATE_LIMIT_MAX: ${LOGIN_RATE_LIMIT_MAX:-10}
+      ALLOW_PRIVATE_SUBSCRIPTIONS: ${ALLOW_PRIVATE_SUBSCRIPTIONS:-false}
+      ALLOWED_SUBSCRIPTION_PRIVATE_HOSTS: ${ALLOWED_SUBSCRIPTION_PRIVATE_HOSTS:-}
       OUTBOUND_TIMEOUT_MS: ${OUTBOUND_TIMEOUT_MS:-30000}
       # How long a login lasts, in seconds (default 86400 = 24h) -- sets
       # both the cookie's Max-Age and @fastify/secure-session's own

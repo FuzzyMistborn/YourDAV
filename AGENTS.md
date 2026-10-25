@@ -853,6 +853,12 @@ From an external review of the code:
   are the ones connected to; hostname is untouched (SNI/Host fine). Literal
   IPs skip DNS and are checked up front. No `Accept-Encoding` is sent, so
   feeds arrive uncompressed.
+- **LAN subscription feeds**: `ALLOW_PRIVATE_SUBSCRIPTIONS=true` permits
+  RFC1918/CGNAT/ULA targets (loopback + link-local stay blocked).
+  `ALLOWED_SUBSCRIPTION_PRIVATE_HOSTS`
+  (comma-separated, exact hostname/IP) exempts named hosts from the
+  private-address block in `safeFetchExternal` (e.g. a LAN Sonarr iCal
+  feed). Default empty = everything private stays blocked.
 - **Timeouts**: `OUTBOUND_TIMEOUT_MS` (default 30s) bounds every outbound
   request -- `safeFetchExternal` (whole exchange incl. body), `davFetch`
   and `detectAuthMethod` via `dav/timeout.ts`.

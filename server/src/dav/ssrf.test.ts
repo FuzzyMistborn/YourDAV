@@ -155,3 +155,46 @@ describe('guardedLookup', () => {
     expect((await run('nonexistent.invalid')).err).toBeInstanceOf(BlockedUrlError)
   })
 })
+
+describe('ALLOWED_SUBSCRIPTION_PRIVATE_HOSTS', () => {
+  it('lets an allowlisted host resolve to a private address', async () => {
+    const { config } = await import('../config.js')
+    config.allowedSubscriptionPrivateHosts = ['sonarr.lan']
+    try {
+      lookup.mockResolvedValue([{ address: '192.168.50.10', family: 4 }])
+      await expect(
+        new Promise((resolve, reject) =>
+          guardedLookup('sonarr.lan', { all: true }, (err, addrs) => (err ? reject(err) : resolve(addrs))),
+        ),
+      ).resolves.toBeTruthy()
+      await expect(
+        new Promise((resolve, reject) =>
+          guardedLookup('other.lan', { all: true }, (err, addrs) => (err ? reject(err) : resolve(addrs))),
+        ),
+      ).rejects.toThrow(BlockedUrlError)
+    } finally {
+      config.allowedSubscriptionPrivateHosts = []
+    }
+  })
+})
+
+describe('ALLOW_PRIVATE_SUBSCRIPTIONS', () => {
+  it('allows LAN addresses but still blocks loopback and link-local', async () => {
+    const { config } = await import('../config.js')
+    config.allowPrivateSubscriptions = true
+    try {
+      responders.push(respond('lan ok'))
+      await expect(safeFetchExternal('http://192.168.50.10/feed.ics')).resolves.toEqual({ text: 'lan ok' })
+      await expect(safeFetchExternal('http://127.0.0.1/feed.ics')).rejects.toThrow(BlockedUrlError)
+      await expect(safeFetchExternal('http://169.254.169.254/latest/')).rejects.toThrow(BlockedUrlError)
+      lookup.mockResolvedValue([{ address: '169.254.169.254', family: 4 }])
+      await expect(
+        new Promise((resolve, reject) =>
+          guardedLookup('evil.example', { all: true }, (err, addrs) => (err ? reject(err) : resolve(addrs))),
+        ),
+      ).rejects.toThrow(BlockedUrlError)
+    } finally {
+      config.allowPrivateSubscriptions = false
+    }
+  })
+})

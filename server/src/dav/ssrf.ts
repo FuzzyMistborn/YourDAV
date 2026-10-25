@@ -9,31 +9,46 @@ export class BlockedUrlError extends Error {}
 const MAX_REDIRECTS = 5
 export const MAX_RESPONSE_BYTES = 5 * 1024 * 1024 // 5MB, generous for an ICS feed
 
+type IpClass = 'public' | 'lan' | 'blocked'
+
 /**
- * Blocks loopback, private, link-local (incl. cloud metadata endpoints at
- * 169.254.169.254), and other non-public IPv4/IPv6 ranges.
+ * 'blocked': loopback, link-local (incl. cloud metadata endpoints at
+ * 169.254.169.254), "this network" and unrecognized addresses -- never
+ * reachable unless the host is explicitly allowlisted.
+ * 'lan': RFC1918 / CGNAT / IPv6 unique-local -- reachable only when
+ * ALLOW_PRIVATE_SUBSCRIPTIONS is set (or the host is allowlisted).
  */
-function isPrivateOrReservedIp(ip: string): boolean {
+function classifyIp(ip: string): IpClass {
   if (isIPv4(ip)) {
     const [a, b] = ip.split('.').map(Number)
-    if (a === 127) return true // loopback
-    if (a === 10) return true // private
-    if (a === 172 && b >= 16 && b <= 31) return true // private
-    if (a === 192 && b === 168) return true // private
-    if (a === 169 && b === 254) return true // link-local, incl. cloud metadata
-    if (a === 100 && b >= 64 && b <= 127) return true // carrier-grade NAT
-    if (a === 0) return true // "this network"
-    return false
+    if (a === 127) return 'blocked' // loopback
+    if (a === 169 && b === 254) return 'blocked' // link-local, incl. cloud metadata
+    if (a === 0) return 'blocked' // "this network"
+    if (a === 10) return 'lan'
+    if (a === 172 && b >= 16 && b <= 31) return 'lan'
+    if (a === 192 && b === 168) return 'lan'
+    if (a === 100 && b >= 64 && b <= 127) return 'lan' // carrier-grade NAT
+    return 'public'
   }
   if (isIPv6(ip)) {
     const lower = ip.toLowerCase()
-    if (lower === '::1') return true // loopback
-    if (lower.startsWith('fe80:') || lower.startsWith('fe8') || lower.startsWith('fe9') || lower.startsWith('fea') || lower.startsWith('feb')) return true // link-local
-    if (lower.startsWith('fc') || lower.startsWith('fd')) return true // unique local
-    if (lower.startsWith('::ffff:')) return isPrivateOrReservedIp(lower.slice('::ffff:'.length))
-    return false
+    if (lower === '::1') return 'blocked' // loopback
+    if (/^fe[89ab]/.test(lower)) return 'blocked' // link-local
+    if (lower.startsWith('fc') || lower.startsWith('fd')) return 'lan' // unique local
+    if (lower.startsWith('::ffff:')) return classifyIp(lower.slice('::ffff:'.length))
+    return 'public'
   }
-  return true // unrecognized -- fail closed
+  return 'blocked' // unrecognized -- fail closed
+}
+
+function isDisallowedIp(ip: string, hostname: string): boolean {
+  if (isPrivateAllowed(hostname)) return false
+  const cls = classifyIp(ip)
+  return cls === 'blocked' || (cls === 'lan' && !config.allowPrivateSubscriptions)
+}
+
+function isPrivateAllowed(hostname: string): boolean {
+  return config.allowedSubscriptionPrivateHosts.includes(hostname.replace(/^\[|\]$/g, '').toLowerCase())
 }
 
 /**
@@ -41,7 +56,7 @@ function isPrivateOrReservedIp(ip: string): boolean {
  * a private/internal network. Returns the validated addresses.
  */
 async function resolvePublicAddresses(hostname: string): Promise<{ address: string; family: number }[]> {
-  if (hostname === 'localhost') {
+  if (hostname === 'localhost' && !isPrivateAllowed(hostname)) {
     throw new BlockedUrlError('Refusing to fetch from "localhost"')
   }
   let addresses: { address: string; family: number }[]
@@ -52,7 +67,7 @@ async function resolvePublicAddresses(hostname: string): Promise<{ address: stri
   }
   if (addresses.length === 0) throw new BlockedUrlError(`Could not resolve host "${hostname}"`)
   for (const { address } of addresses) {
-    if (isPrivateOrReservedIp(address)) {
+    if (isDisallowedIp(address, hostname)) {
       throw new BlockedUrlError(`Refusing to fetch from "${hostname}" (resolves to private address ${address})`)
     }
   }
@@ -80,7 +95,7 @@ export const guardedLookup: LookupFunction = (hostname, options, callback) => {
 }
 
 function assertPublicLiteral(hostname: string): void {
-  if (isPrivateOrReservedIp(hostname)) {
+  if (isDisallowedIp(hostname, hostname)) {
     throw new BlockedUrlError(`Refusing to fetch from private/reserved address "${hostname}"`)
   }
 }
