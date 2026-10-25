@@ -8,6 +8,8 @@
 const ACCOUNT_SCOPED_KEYS = [
   'calendar.subscriptions',
   'calendar.colorOverrides',
+  'calendar.enabledState',
+  'calendar.subscriptionsEnabled',
   'calendar.dismissedPendingShares.v2',
   // A whitelist of calendar ids -- left behind, it would hide every one of
   // the next user's calendars (none of their ids would be on it).

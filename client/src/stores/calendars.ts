@@ -2,7 +2,10 @@ import type { Calendar, UpdateCalendarInput } from '@yourdav/shared'
 import { defineStore } from 'pinia'
 import { reactive, ref } from 'vue'
 import { api } from '../api.js'
+import { loadEnabledState, saveEnabledState } from '../lib/enabledState.js'
 import { useSettingsStore } from './settings.js'
+
+const ENABLED_KEY = 'calendar.enabledState'
 
 const COLOR_OVERRIDE_KEY = 'calendar.colorOverrides'
 // v2: the original key stored dismissal timestamps from the browser's own
@@ -47,6 +50,7 @@ function loadDismissedPending(): Record<string, number> {
 export const useCalendarsStore = defineStore('calendars', () => {
   const calendars = ref<Calendar[]>([])
   const enabled = reactive<Record<string, boolean>>({})
+  const savedEnabled = loadEnabledState(ENABLED_KEY)
   const colorOverrides = reactive<Record<string, string>>(loadColorOverrides())
   const dismissedPending = reactive<Record<string, number>>(loadDismissedPending())
   const loading = ref(false)
@@ -58,7 +62,7 @@ export const useCalendarsStore = defineStore('calendars', () => {
       const defaultVisibleIds = useSettingsStore().defaultVisibleCalendarIds
       for (const cal of calendars.value) {
         if (!(cal.id in enabled)) {
-          enabled[cal.id] = defaultVisibleIds.length === 0 || defaultVisibleIds.includes(cal.id)
+          enabled[cal.id] = savedEnabled[cal.id] ?? (defaultVisibleIds.length === 0 || defaultVisibleIds.includes(cal.id))
         }
       }
     } finally {
@@ -68,6 +72,8 @@ export const useCalendarsStore = defineStore('calendars', () => {
 
   function toggle(id: string): void {
     enabled[id] = !enabled[id]
+    savedEnabled[id] = enabled[id]
+    saveEnabledState(ENABLED_KEY, savedEnabled)
   }
 
   async function create(displayName: string, color?: string): Promise<Calendar> {
@@ -86,6 +92,8 @@ export const useCalendarsStore = defineStore('calendars', () => {
   function forget(id: string): void {
     calendars.value = calendars.value.filter((c) => c.id !== id)
     delete enabled[id]
+    delete savedEnabled[id]
+    saveEnabledState(ENABLED_KEY, savedEnabled)
     delete colorOverrides[id]
     persistOverrides()
   }
