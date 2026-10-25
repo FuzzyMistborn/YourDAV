@@ -28,7 +28,7 @@ export interface RawObjectWithHref extends RawObject {
 export interface CalendarStore {
   discoverCalendars(ctx: DavContext): Promise<Calendar[]>
   createCalendar(ctx: DavContext, input: CreateCalendarInput): Promise<Calendar>
-  /** Owner-only: renames/recolors a calendar via PROPPATCH. */
+  /** Renames/recolors a calendar via PROPPATCH (a recipient's change stays on their own mount). */
   updateCalendar(ctx: DavContext, calendarId: string, input: UpdateCalendarInput): Promise<Calendar>
   getEvents(ctx: DavContext, calendarId: string, range: TimeRange): Promise<CalendarObject[]>
   /**

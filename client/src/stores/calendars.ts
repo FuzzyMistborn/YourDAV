@@ -87,6 +87,22 @@ export const useCalendarsStore = defineStore('calendars', () => {
     const updated = await api.updateCalendar(id, input)
     const idx = calendars.value.findIndex((c) => c.id === id)
     if (idx >= 0) calendars.value[idx] = updated
+    if (input.color !== undefined && id in colorOverrides) {
+      delete colorOverrides[id]
+      persistOverrides()
+    }
+  }
+
+  // The swatch previews live through a local override (setColorOverride);
+  // this commits the final pick to the DAV server so it follows the user to
+  // other browsers/clients. If the server refuses (e.g. a read-only share),
+  // the local override simply stays.
+  async function saveColor(id: string, color: string): Promise<void> {
+    try {
+      await renameCalendar(id, { color })
+    } catch {
+      setColorOverride(id, color)
+    }
   }
 
   function forget(id: string): void {
@@ -144,6 +160,7 @@ export const useCalendarsStore = defineStore('calendars', () => {
     toggle,
     create,
     renameCalendar,
+    saveColor,
     deleteCalendar,
     unsubscribeCalendar,
     dismissPending,

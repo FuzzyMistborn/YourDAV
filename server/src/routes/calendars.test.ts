@@ -275,12 +275,13 @@ describe('PATCH /api/calendars/:id', () => {
     expect(storeMock.updateCalendar).toHaveBeenCalledWith(dav, CAL_ID, { displayName: 'Mine' })
   })
 
-  it('403s when the recipient of a shared calendar tries to recolor it', async () => {
+  it('lets the recipient of a shared calendar recolor their own copy', async () => {
     storeMock.discoverCalendars.mockResolvedValue([calendar({ isShared: true })])
+    storeMock.updateCalendar.mockResolvedValue(calendar({ isShared: true, color: '#00ff00' }))
     const app = await buildApp()
     const res = await app.inject({ method: 'PATCH', url: `/api/calendars/${CAL_ID}`, payload: { color: '#00ff00' } })
-    expect(res.statusCode).toBe(403)
-    expect(storeMock.updateCalendar).not.toHaveBeenCalled()
+    expect(res.statusCode).toBe(200)
+    expect(storeMock.updateCalendar).toHaveBeenCalledWith(dav, CAL_ID, { color: '#00ff00' })
   })
 })
 

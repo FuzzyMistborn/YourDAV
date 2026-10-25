@@ -19,13 +19,10 @@ async function submit(): Promise<void> {
   submitting.value = true
   error.value = null
   try {
-    // A recipient only renames their own copy; color is the owner's.
-    await store.renameCalendar(
-      props.calendarId,
-      props.shared
-        ? { displayName: displayName.value.trim() }
-        : { displayName: displayName.value.trim(), color: color.value },
-    )
+    await store.renameCalendar(props.calendarId, {
+      displayName: displayName.value.trim(),
+      ...(color.value !== props.calendarColor ? { color: color.value } : {}),
+    })
     emit('close')
   } catch (err) {
     error.value = err instanceof ApiRequestError ? err.message : 'Failed to update calendar'
@@ -45,8 +42,8 @@ async function submit(): Promise<void> {
           <span>Name</span>
           <input ref="nameInput" v-model="displayName" type="text" />
         </label>
-        <p v-if="shared" class="dialog__hint">Only changes the name you see; the owner's calendar keeps its name.</p>
-        <label v-if="!shared" class="dialog__field">
+        <p v-if="shared" class="dialog__hint">Only changes the name and color you see; the owner's calendar is unchanged.</p>
+        <label class="dialog__field">
           <span>Color</span>
           <input v-model="color" type="color" class="dialog__swatch" />
         </label>

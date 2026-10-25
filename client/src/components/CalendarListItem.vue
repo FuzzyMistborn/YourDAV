@@ -17,6 +17,11 @@ function onColorInput(id: string, event: Event): void {
   store.setColorOverride(id, input.value)
 }
 
+function onColorChange(id: string, event: Event): void {
+  const input = event.target as HTMLInputElement
+  void store.saveColor(id, input.value)
+}
+
 function toggleMenu(): void {
   menuOpen.value = !menuOpen.value
 }
@@ -91,6 +96,7 @@ function onResetColorClick(id: string): void {
       :value="store.colorFor(cal.id)"
       :title="`Color for ${cal.displayName}`"
       @input="onColorInput(cal.id, $event)"
+      @change="onColorChange(cal.id, $event)"
     />
 
     <!-- Overflow menu rather than inline buttons (unlike PendingSharesList/

@@ -505,8 +505,12 @@ Checked against Radicale 3.7.7 / Baikal 0.11.1 and re-checked on 3.8.3 / 0.13.0 
 
 - **Recipient rename** is a plain `PROPPATCH displayname` on the recipient's own
   mount, and is private to them on both: the owner's name is untouched.
-  `PATCH /api/calendars/:id` therefore allows a name-only change on a shared
-  calendar (color stays owner-only; recipients recolor locally in the browser).
+  `PATCH /api/calendars/:id` therefore allows a name change on a shared
+  calendar. Color works the same way (re-checked 2026-10 on Radicale 3.8.3 /
+  Baikal 0.13.0: a recipient's `PROPPATCH calendar-color` lands on their own
+  mount/instance and the owner's color is untouched), so it is allowed too.
+  The sidebar swatch previews via a local override and commits to the server
+  on `change`, falling back to the local override if the server refuses.
   Works on read-only shares too.
 - **Radicale**: the recipient's name is stored in the share record's
   `Properties` overlay (same place the owner's share-time name goes), and an

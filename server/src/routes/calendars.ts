@@ -177,15 +177,9 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
     if (!calendar) {
       return reply.code(404).send({ error: 'not_found', message: 'Calendar not found' })
     }
-    // A recipient may rename a shared calendar for themselves: both Radicale
-    // and Baikal keep the recipient's displayname private to their own mount
-    // (verified: the owner's name is untouched, and the recipient's name
-    // survives a later owner rename on Radicale). Color stays an owner
-    // property -- recipients recolor locally in the browser instead.
-    if (calendar.isShared && req.body?.color !== undefined) {
-      return reply.code(403).send({ error: 'forbidden', message: 'Only the owner can recolor this calendar' })
-    }
-
+    // A recipient may rename or recolor a shared calendar for themselves:
+    // both Radicale and Baikal keep displayname and calendar-color private to
+    // the recipient's own mount (verified: the owner's values are untouched).
     try {
       const updated = await store.updateCalendar(dav, req.params.id, req.body ?? {})
       return reply.send(updated)
