@@ -163,12 +163,27 @@ describe('stored subscription list (GET/PUT /api/subscriptions)', () => {
     expect(res.json()).toEqual({ subscriptions: [sub] })
   })
 
-  it('returns null when nothing is stored, unparseable, or malformed', async () => {
+  it('returns null when nothing is stored', async () => {
+    readSubscriptionsProp.mockResolvedValue(null)
+    const res = await (await buildApp()).inject({ method: 'GET', url: '/api/subscriptions' })
+    expect(res.json()).toEqual({ subscriptions: null })
+  })
+
+  it('flags an unparseable or malformed stored list as invalid', async () => {
     const app = await buildApp()
-    for (const raw of [null, 'not json', JSON.stringify([{ id: 1 }])]) {
+    for (const raw of ['not json', JSON.stringify([{ id: 1 }])]) {
       readSubscriptionsProp.mockResolvedValue(raw)
-      expect((await app.inject({ method: 'GET', url: '/api/subscriptions' })).json()).toEqual({ subscriptions: null })
+      expect((await app.inject({ method: 'GET', url: '/api/subscriptions' })).json()).toEqual({
+        subscriptions: null,
+        invalid: true,
+      })
     }
+  })
+
+  it('502s, rather than reporting an empty list, when the DAV read fails', async () => {
+    readSubscriptionsProp.mockRejectedValue(new Error('boom'))
+    const res = await (await buildApp()).inject({ method: 'GET', url: '/api/subscriptions' })
+    expect(res.statusCode).toBe(502)
   })
 
   it('stores a valid list', async () => {
@@ -220,5 +235,13 @@ describe('holiday calendars over HTTP', () => {
     })
     expect(res.statusCode).toBe(200)
     expect(fetchSubscriptionEvents).toHaveBeenCalledWith('holidays:US', expect.anything())
+  })
+
+  it('400s a holidays: URL with an unknown country', async () => {
+    const res = await (await buildApp()).inject({
+      method: 'GET',
+      url: '/api/subscriptions/events?url=holidays%3AZZ&start=2026-01-01T00:00:00.000Z&end=2026-02-01T00:00:00.000Z',
+    })
+    expect(res.statusCode).toBe(400)
   })
 })

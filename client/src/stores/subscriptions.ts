@@ -34,6 +34,40 @@ function loadSubscriptions(): Subscription[] {
   }
 }
 
+/** Replays edits made locally since `before` (add/remove/change by id) onto the server's list. */
+function mergeEdits(
+  stored: Subscription[],
+  before: Subscription[],
+  current: Subscription[],
+): { list: Subscription[]; edited: boolean } {
+  const beforeById = new Map(before.map((s) => [s.id, s]))
+  const currentById = new Map(current.map((s) => [s.id, s]))
+  let edited = false
+  const list: Subscription[] = []
+  for (const sub of stored) {
+    const prev = beforeById.get(sub.id)
+    const now = currentById.get(sub.id)
+    if (prev && !now) {
+      edited = true // removed locally
+      continue
+    }
+    if (prev && now && (prev.name !== now.name || prev.url !== now.url || prev.color !== now.color)) {
+      edited = true
+      list.push({ ...now })
+    } else {
+      list.push(sub)
+    }
+  }
+  const storedIds = new Set(stored.map((s) => s.id))
+  for (const sub of current) {
+    if (!beforeById.has(sub.id) && !storedIds.has(sub.id)) {
+      edited = true // added locally
+      list.push(sub)
+    }
+  }
+  return { list, edited }
+}
+
 function rangeKey(id: string, start: string, end: string): string {
   return `${id}:${start}:${end}`
 }
@@ -48,6 +82,9 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
   // it follows the account across browsers and logouts; localStorage stays as
   // a mirror and as the whole store on servers that can't hold the property.
   const serverBacked = ref(true)
+  // Set when the last save to the server failed for a reason other than
+  // "unsupported", so the edit is only held in this browser for now.
+  const syncError = ref<string | null>(null)
   let initialized = false
   let initDone: Promise<void> = Promise.resolve()
   let pendingPush: Promise<void> = Promise.resolve()
@@ -71,9 +108,16 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
       const snapshot = subscriptions.value.map(({ id, name, url, color }) => ({ id, name, url, color }))
       try {
         await api.putStoredSubscriptions(snapshot)
+        syncError.value = null
       } catch (err) {
         // 501 = this DAV server can't store it: stay browser-local from now on.
-        if (err instanceof ApiRequestError && err.status === 501) serverBacked.value = false
+        if (err instanceof ApiRequestError && err.status === 501) {
+          serverBacked.value = false
+          syncError.value = null
+        } else {
+          syncError.value =
+            err instanceof ApiRequestError ? err.message : 'Could not save subscriptions to the server'
+        }
       }
     })
   }
@@ -92,19 +136,37 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
   }
 
   async function load(): Promise<void> {
+    const before = subscriptions.value.map((s) => ({ ...s }))
     try {
-      const { subscriptions: stored } = await api.getStoredSubscriptions()
+      const { subscriptions: stored, invalid } = await api.getStoredSubscriptions()
       if (stored === null) {
-        // Nothing saved yet: seed the server from this browser's list.
-        if (subscriptions.value.length > 0) pushToServer()
+        // Nothing saved yet: seed the server from this browser's list. An
+        // unreadable stored list is left alone rather than overwritten.
+        if (!invalid && subscriptions.value.length > 0) pushToServer()
         return
       }
-      subscriptions.value = stored
-      for (const sub of stored) if (!(sub.id in enabled)) enabled[sub.id] = true
+      const merged = mergeEdits(stored, before, subscriptions.value)
+      subscriptions.value = merged.list
+      for (const sub of merged.list) if (!(sub.id in enabled)) enabled[sub.id] = true
       writeLocal()
+      // Edits made while the fetch was in flight still need to reach the server.
+      if (merged.edited) pushToServer()
     } catch {
       // Server unreachable: keep working from the browser-local list.
     }
+  }
+
+  /** Drops all in-memory state so the next account starts clean. */
+  function clear(): void {
+    subscriptions.value = []
+    for (const key of Object.keys(enabled)) delete enabled[key]
+    for (const key of Object.keys(errors)) delete errors[key]
+    byRange.value = {}
+    serverBacked.value = true
+    syncError.value = null
+    initialized = false
+    initDone = Promise.resolve()
+    pendingPush = Promise.resolve()
   }
 
   function add(name: string, url: string, color = DEFAULT_COLOR): void {
@@ -175,5 +237,5 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
       .flatMap((s) => byRange.value[rangeKey(s.id, start, end)] ?? [])
   }
 
-  return { subscriptions, enabled, errors, serverBacked, init, add, update, remove, toggle, setColor, loadRange, eventsFor }
+  return { subscriptions, enabled, errors, serverBacked, syncError, init, clear, add, update, remove, toggle, setColor, loadRange, eventsFor }
 })

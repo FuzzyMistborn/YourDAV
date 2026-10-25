@@ -48,11 +48,17 @@ const submitting = ref(false)
 const error = ref<string | null>(null)
 const resultText = ref<string | null>(null)
 
+let fileSeq = 0
+
 async function onFileChange(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
-  file.value = input.files?.[0] ?? null
-  if (!file.value) return
-  const color = calendarColorFromIcs(await file.value.text())
+  const picked = input.files?.[0] ?? null
+  file.value = picked
+  const seq = ++fileSeq
+  if (!picked) return
+  const color = calendarColorFromIcs(await picked.text())
+  // A newer selection superseded this one while the file was being read.
+  if (seq !== fileSeq) return
   if (color) newColor.value = color
 }
 

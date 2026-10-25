@@ -20,11 +20,28 @@ export function isHolidayUrl(url: string): boolean {
   return url.startsWith(HOLIDAYS_PREFIX)
 }
 
+let countryList: { code: string; name: string }[] | null = null
+let countryCodes: Set<string> | null = null
+
 export function holidayCountries(): { code: string; name: string }[] {
-  const names = new Holidays().getCountries('en') as Record<string, string>
-  return Object.entries(names)
-    .map(([code, name]) => ({ code, name }))
-    .sort((a, b) => a.name.localeCompare(b.name))
+  if (!countryList) {
+    const names = new Holidays().getCountries('en') as Record<string, string>
+    countryList = Object.entries(names)
+      .map(([code, name]) => ({ code, name }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+    countryCodes = new Set(countryList.map((c) => c.code))
+  }
+  return countryList
+}
+
+function isKnownCountry(code: string): boolean {
+  holidayCountries()
+  return countryCodes!.has(code)
+}
+
+/** True when a `holidays:` URL names a country the dataset knows. */
+export function isKnownHolidayUrl(url: string): boolean {
+  return isKnownCountry(parseHolidayUrl(url).code)
 }
 
 function icsDate(isoDate: string): string {
@@ -49,7 +66,7 @@ function parseHolidayUrl(url: string): { code: string; observances: boolean } {
 export function fetchHolidayEvents(url: string, range: TimeRange): CalendarObject[] {
   const { code, observances } = parseHolidayUrl(url)
   const includedTypes = new Set(observances ? [...BASE_TYPES, 'observance'] : BASE_TYPES)
-  if (!holidayCountries().some((c) => c.code === code)) {
+  if (!isKnownCountry(code)) {
     throw new Error(`Unknown holiday country "${code}"`)
   }
   const hd = new Holidays(code)

@@ -6,6 +6,31 @@ function required(name: string): string {
   return value
 }
 
+function nonNegativeInt(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim()
+  if (!raw) return fallback
+  const n = Number(raw)
+  if (!Number.isInteger(n) || n < 0) {
+    throw new Error(`${name} must be a non-negative integer (got "${raw}")`)
+  }
+  return n
+}
+
+function davServerUrl(): string | null {
+  const raw = process.env.DAV_SERVER_URL?.trim()
+  if (!raw) return null
+  let protocol: string
+  try {
+    protocol = new URL(raw).protocol
+  } catch {
+    protocol = ''
+  }
+  if (protocol !== 'http:' && protocol !== 'https:') {
+    throw new Error(`DAV_SERVER_URL must be a full http(s) URL (got "${raw}")`)
+  }
+  return raw
+}
+
 export const config = {
   port: Number(process.env.PORT ?? 3000),
   nodeEnv: process.env.NODE_ENV ?? 'development',
@@ -24,14 +49,14 @@ export const config = {
   // so users can't point this instance at a different host. A full URL with
   // scheme (used as-is, no https-then-http fallback), unlike
   // allowedDavHosts below, which is bare hostnames.
-  davServerUrl: process.env.DAV_SERVER_URL?.trim() || null,
+  davServerUrl: davServerUrl(),
   allowedDavHosts: process.env.ALLOWED_DAV_HOSTS
     ? process.env.ALLOWED_DAV_HOSTS.split(',').map((h) => h.trim())
     : null,
   // Max distinct events (UIDs) one ICS import will create; the rest are
   // reported back as skipped. Each event is a separate write to the DAV
   // server, so this bounds the upstream load of a single request.
-  maxImportEvents: Number(process.env.MAX_IMPORT_EVENTS ?? 5000),
+  maxImportEvents: nonNegativeInt('MAX_IMPORT_EVENTS', 5000),
   // Lets subscriptions fetch from LAN addresses (RFC1918, CGNAT, IPv6
   // unique-local). Loopback and link-local (cloud metadata) stay blocked.
   // Only enable on an instance whose users you trust.
