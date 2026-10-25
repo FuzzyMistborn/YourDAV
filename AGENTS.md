@@ -112,7 +112,7 @@ package -- `@fullcalendar/vue3/{daygrid,timegrid,interaction,list,multimonth}`
 
 Both `.dev-radicale/` and `.dev-baikal/` are git-untracked scratch state.
 
-### Radicale (3.7.7)
+### Radicale (3.8.3)
 
 ```
 python3 -m venv .dev-radicale/venv
@@ -137,7 +137,7 @@ Reusable fixtures — two fully-accepted map shares from `testuser` to
 `Permissions: "rw"`. If sharing/rights behavior looks wrong, check
 `.dev-radicale/config/rights` and `[sharing]` first.
 
-### Baikal (0.11.1)
+### Baikal (0.13.0)
 
 Needs PHP with `mbstring`, `xml`/`dom`/`simplexml`, `pdo_sqlite` (PHP 8.3 here
 has all of them). Baikal is installed and configured under
@@ -159,11 +159,19 @@ prints one `[status]: METHOD /path` line per request, which is the easiest way
 to count round trips / 401s. No `sqlite3` CLI on this host -- use Python's
 `sqlite3` module.
 
+Upgrading in place: unzip the new release, copy `config/baikal.yaml` and
+`Specific/` over its own, swap it in for `baikal/`, restart `php -S`, then open
+`/admin/install/` and press "Start upgrade" (or GET
+`/admin/install/index.php?upgradeConfirmed=true`). 0.11.1 -> 0.13.0 only
+touched the `calendarinstances` table. Radicale: `.dev-radicale/venv/bin/python
+-m pip install -U radicale` (the venv's `pip` script has a stale shebang from
+the old directory name; use `python -m pip`).
+
 Install from scratch (only if `.dev-baikal/` is gone):
 
 ```
 curl -sL -o .dev-baikal/baikal.zip \
-  https://github.com/sabre-io/Baikal/releases/download/0.11.1/baikal-0.11.1.zip
+  https://github.com/sabre-io/Baikal/releases/download/0.13.0/baikal-0.13.0.zip
 unzip -q .dev-baikal/baikal.zip -d .dev-baikal && rm .dev-baikal/baikal.zip
 ```
 
@@ -493,7 +501,7 @@ Baikal 0.11.1 (Basic) via the sharing routes.
 
 ### Renaming shared calendars
 
-Checked against both servers (2026-10):
+Checked against Radicale 3.7.7 / Baikal 0.11.1 and re-checked on 3.8.3 / 0.13.0 (2026-10) with identical results:
 
 - **Recipient rename** is a plain `PROPPATCH displayname` on the recipient's own
   mount, and is private to them on both: the owner's name is untouched.
