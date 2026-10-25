@@ -9,7 +9,7 @@ import {
   ShareFailedError,
   updateSharePermission,
 } from '../dav/sharing.js'
-import { decodeId } from '../store/idCodec.js'
+import { decodeUrlId } from '../store/idCodec.js'
 import { store } from '../store/index.js'
 import { requireSession } from './requireSession.js'
 
@@ -61,7 +61,7 @@ export async function sharingRoutes(app: FastifyInstance): Promise<void> {
     if (!dav) return
     if (!(await requireOwnedCalendar(dav, req.params.id, reply))) return
 
-    const calendarUrl = decodeId(req.params.id)
+    const calendarUrl = decodeUrlId(req.params.id)
     assertHrefSameHost(dav.baseUrl, calendarUrl)
     const shares = await listSharesForCalendar(dav, calendarUrl)
     return reply.send(shares)
@@ -78,7 +78,7 @@ export async function sharingRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send({ error: 'bad_request', message: 'a valid permission is required' })
       }
 
-      const calendarUrl = decodeId(req.params.id)
+      const calendarUrl = decodeUrlId(req.params.id)
       assertHrefSameHost(dav.baseUrl, calendarUrl)
 
       try {
@@ -98,7 +98,7 @@ export async function sharingRoutes(app: FastifyInstance): Promise<void> {
     if (!dav) return
     if (!(await requireOwnedCalendar(dav, req.params.id, reply))) return
 
-    const calendarUrl = decodeId(req.params.id)
+    const calendarUrl = decodeUrlId(req.params.id)
     assertHrefSameHost(dav.baseUrl, calendarUrl)
 
     try {
