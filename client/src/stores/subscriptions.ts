@@ -2,6 +2,7 @@ import type { CalendarObject } from '@yourdav/shared'
 import { defineStore } from 'pinia'
 import { reactive, ref } from 'vue'
 import { api, ApiRequestError } from '../api.js'
+import { loadEnabledState, saveEnabledState } from '../lib/enabledState.js'
 
 export interface Subscription {
   id: string
@@ -11,6 +12,7 @@ export interface Subscription {
 }
 
 const STORAGE_KEY = 'calendar.subscriptions'
+const ENABLED_KEY = 'calendar.subscriptionsEnabled'
 const DEFAULT_COLOR = '#8e5fd4'
 
 // crypto.randomUUID() only exists in secure contexts (HTTPS, or the
@@ -74,7 +76,10 @@ function rangeKey(id: string, start: string, end: string): string {
 
 export const useSubscriptionsStore = defineStore('subscriptions', () => {
   const subscriptions = ref<Subscription[]>(loadSubscriptions())
-  const enabled = reactive<Record<string, boolean>>(Object.fromEntries(subscriptions.value.map((s) => [s.id, true])))
+  const savedEnabled = loadEnabledState(ENABLED_KEY)
+  const enabled = reactive<Record<string, boolean>>(
+    Object.fromEntries(subscriptions.value.map((s) => [s.id, savedEnabled[s.id] ?? true])),
+  )
   const byRange = ref<Record<string, CalendarObject[]>>({})
   const errors = reactive<Record<string, string>>({})
 
@@ -147,7 +152,7 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
       }
       const merged = mergeEdits(stored, before, subscriptions.value)
       subscriptions.value = merged.list
-      for (const sub of merged.list) if (!(sub.id in enabled)) enabled[sub.id] = true
+      for (const sub of merged.list) if (!(sub.id in enabled)) enabled[sub.id] = savedEnabled[sub.id] ?? true
       writeLocal()
       // Edits made while the fetch was in flight still need to reach the server.
       if (merged.edited) pushToServer()
@@ -160,6 +165,7 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
   function clear(): void {
     subscriptions.value = []
     for (const key of Object.keys(enabled)) delete enabled[key]
+    for (const key of Object.keys(savedEnabled)) delete savedEnabled[key]
     for (const key of Object.keys(errors)) delete errors[key]
     byRange.value = {}
     serverBacked.value = true
@@ -197,12 +203,16 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
   function remove(id: string): void {
     subscriptions.value = subscriptions.value.filter((s) => s.id !== id)
     delete enabled[id]
+    delete savedEnabled[id]
+    saveEnabledState(ENABLED_KEY, savedEnabled)
     delete errors[id]
     persist()
   }
 
   function toggle(id: string): void {
     enabled[id] = !enabled[id]
+    savedEnabled[id] = enabled[id]
+    saveEnabledState(ENABLED_KEY, savedEnabled)
   }
 
   function setColor(id: string, color: string): void {
