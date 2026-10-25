@@ -1371,8 +1371,9 @@ watch(enabledSubscriptionIds, (ids, oldIds) => {
 }
 .calendar-card .yc-fc-event {
   border-radius: 5px;
-  font-size: 0.8rem;
-  font-weight: 500;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 0.25);
 }
 .calendar-card .yc-fc-slot-label {
   color: var(--color-text-faint);
