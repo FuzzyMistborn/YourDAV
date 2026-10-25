@@ -1,6 +1,7 @@
 import type { CalendarObject } from '@yourdav/shared'
 import type { FastifyInstance } from 'fastify'
 import { readSubscriptionsProp, SettingsUnsupportedError, writeSubscriptionsProp } from '../dav/userSettings.js'
+import { holidayCountries, isHolidayUrl } from '../ical/holidays.js'
 import { fetchSubscriptionEvents } from '../ical/subscription.js'
 import { requireSession } from './requireSession.js'
 
@@ -88,6 +89,12 @@ export async function subscriptionRoutes(app: FastifyInstance): Promise<void> {
     return reply.code(204).send()
   })
 
+  // Countries offered by the built-in holiday calendars (holidays:<code>).
+  app.get('/holiday-countries', async (req, reply) => {
+    if (!requireSession(req, reply)) return
+    return reply.send(holidayCountries())
+  })
+
   app.get<{ Querystring: { url?: string; start?: string; end?: string } }>('/events', async (req, reply) => {
     // Fetches an arbitrary user-supplied URL server-side; safeFetchExternal
     // (server/src/dav/ssrf.ts) blocks private/loopback/link-local
@@ -119,7 +126,7 @@ export async function subscriptionRoutes(app: FastifyInstance): Promise<void> {
     } catch {
       return reply.code(400).send({ error: 'bad_request', message: 'Invalid subscription URL' })
     }
-    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    if (!isHolidayUrl(url) && parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
       return reply.code(400).send({ error: 'bad_request', message: 'Only http(s)/webcal URLs are supported' })
     }
 

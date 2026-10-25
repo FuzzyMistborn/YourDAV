@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
+import { api } from '../api.js'
 import { useSubscriptionsStore } from '../stores/subscriptions.js'
 import ConfirmDialog from './ConfirmDialog.vue'
 
@@ -28,6 +29,45 @@ function submitAdd(): void {
   adding.value = false
 }
 
+// Built-in holiday calendars are ordinary subscriptions whose URL is
+// `holidays:<country code>`; the server generates their events locally.
+const addingHolidays = ref(false)
+const countries = ref<{ code: string; name: string }[]>([])
+const countriesError = ref(false)
+const selectedCountry = ref('')
+const includeObservances = ref(false)
+
+const addedCountryCodes = computed(
+  () => new Set(
+    store.subscriptions.filter((s) => s.url.startsWith('holidays:')).map((s) => s.url.slice('holidays:'.length).split('?')[0]),
+  ),
+)
+
+async function toggleHolidays(): Promise<void> {
+  addingHolidays.value = !addingHolidays.value
+  if (addingHolidays.value && countries.value.length === 0) {
+    countriesError.value = false
+    try {
+      countries.value = await api.getHolidayCountries()
+    } catch {
+      countriesError.value = true
+    }
+  }
+}
+
+function submitHolidays(): void {
+  const country = countries.value.find((c) => c.code === selectedCountry.value)
+  if (!country) return
+  const withObservances = includeObservances.value
+  store.add(
+    `${country.name} holidays${withObservances ? ' & observances' : ''}`,
+    `holidays:${country.code}${withObservances ? '?observances' : ''}`,
+  )
+  selectedCountry.value = ''
+  includeObservances.value = false
+  addingHolidays.value = false
+}
+
 const confirmingRemove = ref<{ id: string; name: string } | null>(null)
 
 function onRemoveClick(id: string, name: string): void {
@@ -44,8 +84,30 @@ function confirmRemove(): void {
   <div class="subscription-list">
     <div class="subscription-list__header">
       <h2 class="subscription-list__heading">Subscriptions</h2>
-      <button type="button" class="icon-add-btn" title="Add subscription" @click="toggleAdd">+</button>
+      <span class="subscription-list__header-actions">
+        <button type="button" class="btn btn-ghost subscription-list__holidays-btn" @click="toggleHolidays">
+          Holidays
+        </button>
+        <button type="button" class="icon-add-btn" title="Add subscription" @click="toggleAdd">+</button>
+      </span>
     </div>
+
+    <form v-if="addingHolidays" class="subscription-list__form" @submit.prevent="submitHolidays">
+      <select v-model="selectedCountry" required aria-label="Country">
+        <option value="" disabled>{{ countriesError ? 'Could not load countries' : 'Choose a country…' }}</option>
+        <option v-for="c in countries" :key="c.code" :value="c.code" :disabled="addedCountryCodes.has(c.code)">
+          {{ c.name }}
+        </option>
+      </select>
+      <label class="subscription-list__check">
+        <input v-model="includeObservances" type="checkbox" />
+        <span>Include observances (Mother's Day, Valentine's Day, Easter Sunday…)</span>
+      </label>
+      <div class="subscription-list__form-actions">
+        <button type="button" class="btn btn-ghost" @click="addingHolidays = false">Cancel</button>
+        <button type="submit" class="btn btn-primary" :disabled="!selectedCountry">Add</button>
+      </div>
+    </form>
 
     <form v-if="adding" class="subscription-list__form" @submit.prevent="submitAdd">
       <input ref="nameInput" v-model="newName" type="text" placeholder="Name" required />
@@ -89,6 +151,28 @@ function confirmRemove(): void {
 </template>
 
 <style scoped>
+.subscription-list__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.subscription-list__holidays-btn {
+  padding: 0.1rem 0.45rem;
+  font-size: 0.72rem;
+}
+.subscription-list__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+}
+.subscription-list__check input {
+  margin-top: 0.15rem;
+}
+.subscription-list__form select {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.82rem;
+}
 .subscription-list__header {
   display: flex;
   align-items: center;

@@ -416,7 +416,14 @@ next saved.
   keeps localStorage as a mirror and as the sole store when the server
   answers 501; an account with no stored list seeds the server from the
   browser's. Last write wins. Enabled/disabled state is still per-session.
-  The server otherwise just proxies each URL per request. Events merge into `CalendarView.vue` with
+  **Holiday calendars**: a subscription whose URL is `holidays:<ISO country>`
+  is generated locally from `date-holidays` (`ical/holidays.ts`; public + bank
+  holidays by default, plus observances (Mother's Day, Valentine's Day, ...)
+  for `holidays:<code>?observances`; never the "optional" type; one all-day event per holiday, fed through
+  `expandCalendarObject`) instead of fetched. The UI's "Holidays" button
+  adds one (`GET /api/subscriptions/holiday-countries` lists countries), so
+  persistence, color, toggle and removal come from the subscription list.
+  Country level only -- no regions/states. The server otherwise just proxies each URL per request. Events merge into `CalendarView.vue` with
   `editable: false`.
 
 ## Calendar sharing

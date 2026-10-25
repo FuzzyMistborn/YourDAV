@@ -15,6 +15,7 @@
     "@touch4it/ical-timezones": "^1.9.0",
     "@yourdav/shared": "*",
     "better-sqlite3": "^13.0.3",
+    "date-holidays": "^3.38.0",
     "fastify": "^5.12.7",
     "ical.js": "^2.1.0",
     "luxon": "^3.5.0",
