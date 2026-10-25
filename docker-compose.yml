@@ -10,10 +10,16 @@ services:
       # "key must be 32 bytes".
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET to the output of `openssl rand -hex 32}
       # Comma-separated allowlist of CalDAV server hostnames this app is
-      # permitted to talk to -- see server/src/dav/hostAllowlist.ts. Unset
-      # (the default) allows any host, which is fine for a trusted personal
-      # instance but worth locking down if this is reachable more broadly.
+      # permitted to talk to (hostnames only, no scheme or port) -- see
+      # server/src/dav/hostAllowlist.ts. Unset (the default) allows any
+      # host, which is fine for a trusted personal instance but worth
+      # locking down if this is reachable more broadly.
       ALLOWED_DAV_HOSTS: ${ALLOWED_DAV_HOSTS:-}
+      # Fixed DAV server URL; when set, the login page hides the Server URL
+      # field and all logins use this server. Unlike ALLOWED_DAV_HOSTS this is
+      # a full URL -- the scheme is required (https://dav.example.com), and
+      # its hostname must be in ALLOWED_DAV_HOSTS if that is also set.
+      DAV_SERVER_URL: ${DAV_SERVER_URL:-}
       # Set to true behind a reverse proxy so login rate limiting uses the
       # real client IP; leave false when exposed directly.
       TRUST_PROXY: ${TRUST_PROXY:-false}
@@ -24,7 +30,7 @@ services:
       ALLOW_PRIVATE_SUBSCRIPTIONS: ${ALLOW_PRIVATE_SUBSCRIPTIONS:-false}
       ALLOWED_SUBSCRIPTION_PRIVATE_HOSTS: ${ALLOWED_SUBSCRIPTION_PRIVATE_HOSTS:-}
       OUTBOUND_TIMEOUT_MS: ${OUTBOUND_TIMEOUT_MS:-30000}
-      # How long a login lasts, in seconds (default 86400 = 24h) -- sets
+      # How long a login lasts, in days (default 1 = 24h) -- sets
       # both the cookie's Max-Age and @fastify/secure-session's own
       # server-side expiry check (server/src/session.ts), kept in sync so
       # the cookie doesn't outlive (or expire well before) the session
@@ -39,9 +45,6 @@ services:
       # IANA zone name (e.g. America/New_York) the client pre-selects for a
       # new event, in place of each browser's own auto-detected zone --
       # unset (the default) leaves that browser-detection behavior alone.
-      # Fixed DAV server URL; when set, the login page hides the Server URL
-      # field and all logins use this server.
-      DAV_SERVER_URL: ${DAV_SERVER_URL:-}
       DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-}
       # NODE_ENV=production (set in the Dockerfile) marks the session
       # cookie Secure (server/src/session.ts) -- browsers will refuse to

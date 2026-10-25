@@ -21,7 +21,9 @@ export const config = {
   sessionTtlSeconds: Number(process.env.SESSION_TTL_DAYS ?? 1) * 86400,
   // Fixed DAV server for every login. When set, the login form hides its
   // Server URL field and the server ignores any serverUrl the client sends,
-  // so users can't point this instance at a different host.
+  // so users can't point this instance at a different host. A full URL with
+  // scheme (used as-is, no https-then-http fallback), unlike
+  // allowedDavHosts below, which is bare hostnames.
   davServerUrl: process.env.DAV_SERVER_URL?.trim() || null,
   allowedDavHosts: process.env.ALLOWED_DAV_HOSTS
     ? process.env.ALLOWED_DAV_HOSTS.split(',').map((h) => h.trim())
