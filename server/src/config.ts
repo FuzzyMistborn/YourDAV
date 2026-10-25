@@ -30,6 +30,18 @@ export const config = {
   // reported back as skipped. Each event is a separate write to the DAV
   // server, so this bounds the upstream load of a single request.
   maxImportEvents: Number(process.env.MAX_IMPORT_EVENTS ?? 5000),
+  // Lets subscriptions fetch from LAN addresses (RFC1918, CGNAT, IPv6
+  // unique-local). Loopback and link-local (cloud metadata) stay blocked.
+  // Only enable on an instance whose users you trust.
+  allowPrivateSubscriptions: process.env.ALLOW_PRIVATE_SUBSCRIPTIONS === 'true',
+  // Hostnames (or literal IPs) that calendar subscriptions may fetch even
+  // when they resolve to a private/internal address -- e.g. a LAN Sonarr or
+  // Radarr iCal feed. Exact, case-insensitive match; everything else keeps
+  // the private-address block. Redirects are still validated per hop.
+  allowedSubscriptionPrivateHosts: (process.env.ALLOWED_SUBSCRIPTION_PRIVATE_HOSTS ?? '')
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean),
   // Upper bound, in ms, on any single outbound request (DAV or
   // subscription feed) -- without it a server that accepts the connection
   // and then stalls would hold the request open forever.
