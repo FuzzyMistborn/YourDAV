@@ -1007,23 +1007,24 @@ const contactCountLabel = computed(() => {
           <!-- Editor Mode -->
           <div v-if="editing" class="detail-card edit-card">
             <div class="edit-card__header">
-              <h2>{{ isCreating ? 'New Contact' : 'Edit Contact' }}</h2>
-              <div class="edit-card__actions">
-                <button type="button" class="btn btn-ghost" :disabled="saving" @click="cancelEdit">Cancel</button>
-                <button
-                  type="button"
-                  class="btn btn-primary"
-                  :disabled="saving || nameMissing || !!dateError"
-                  @click="saveContact"
-                >
-                  {{ saving ? 'Saving…' : 'Save' }}
-                </button>
+              <div class="edit-card__header-main">
+                <h2>{{ isCreating ? 'New Contact' : 'Edit Contact' }}</h2>
+                <div class="edit-card__actions">
+                  <button type="button" class="btn btn-ghost" :disabled="saving" @click="cancelEdit">Cancel</button>
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    :disabled="saving || nameMissing || !!dateError"
+                    @click="saveContact"
+                  >
+                    {{ saving ? 'Saving…' : 'Save' }}
+                  </button>
+                </div>
               </div>
+              <p v-if="saveError" class="edit-form__error">{{ saveError }}</p>
             </div>
 
             <form class="edit-form" @submit.prevent="saveContact">
-              <p v-if="saveError" class="edit-form__error">{{ saveError }}</p>
-
               <div v-if="isCreating && contactsStore.writableBooks.length > 1" class="form-group">
                 <label for="new-contact-book">Address book</label>
                 <select id="new-contact-book" v-model="createBookId" class="select">
@@ -1922,11 +1923,24 @@ const contactCountLabel = computed(() => {
 
 /* Edit Form */
 .edit-card__header {
+  position: sticky;
+  top: -1.5rem;
+  z-index: 10;
+  background: var(--color-surface);
+  margin-top: -1.5rem;
+  padding-top: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.edit-card__header-main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--color-border);
+  width: 100%;
 }
 
 .edit-card__header h2 {
@@ -1939,6 +1953,7 @@ const contactCountLabel = computed(() => {
 .edit-card__actions {
   display: flex;
   gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .edit-form {
