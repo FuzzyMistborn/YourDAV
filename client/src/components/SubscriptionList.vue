@@ -1,10 +1,24 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api.js'
+import { useSettingsStore } from '../stores/settings.js'
 import { useSubscriptionsStore } from '../stores/subscriptions.js'
 import ConfirmDialog from './ConfirmDialog.vue'
 
 const store = useSubscriptionsStore()
+const settingsStore = useSettingsStore()
+
+// Follows the "Sort calendars by" setting; 'server' keeps the order added.
+const sortedSubscriptions = computed(() => {
+  switch (settingsStore.calendarSortOrder) {
+    case 'name-asc':
+      return [...store.subscriptions].sort((a, b) => a.name.localeCompare(b.name))
+    case 'name-desc':
+      return [...store.subscriptions].sort((a, b) => b.name.localeCompare(a.name))
+    default:
+      return store.subscriptions
+  }
+})
 
 const adding = ref(false)
 const newName = ref('')
@@ -156,7 +170,7 @@ function confirmRemove(): void {
     </form>
 
     <ul>
-      <li v-for="sub in store.subscriptions" :key="sub.id" :class="editingId === sub.id ? 'subscription-list__editing' : 'subscription-list__item'">
+      <li v-for="sub in sortedSubscriptions" :key="sub.id" :class="editingId === sub.id ? 'subscription-list__editing' : 'subscription-list__item'">
         <form v-if="editingId === sub.id" class="subscription-list__form" @submit.prevent="submitEdit">
           <input ref="editNameInput" v-model="editName" type="text" placeholder="Name" required />
           <input v-if="!editingIsHoliday" v-model="editUrl" type="url" placeholder="https:// or webcal:// URL" required />
