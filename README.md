@@ -129,6 +129,12 @@ to restrict which hosts it's allowed to connect to).
 > also set `TRUST_PROXY=true` so the login rate limit (10/min per IP) sees
 > real client IPs. See [SECURITY.md](./SECURITY.md).
 
+Calendar subscriptions (external iCal URLs) refuse hosts that resolve to
+private/LAN addresses. To subscribe to LAN feeds such as Sonarr's, set
+`ALLOW_PRIVATE_SUBSCRIPTIONS=true` (loopback and link-local/cloud-metadata
+addresses stay blocked), or list individual hosts in
+`ALLOWED_SUBSCRIPTION_PRIVATE_HOSTS` (comma-separated, exact match).
+
 **Logged out immediately after a successful login?** The session cookie is
 marked `Secure` whenever `NODE_ENV=production` (the Dockerfile's default),
 so browsers silently drop it if you're accessing the app over plain HTTP at
