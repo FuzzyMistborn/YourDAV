@@ -10,6 +10,7 @@ const emit = defineEmits<{ share: [id: string, name: string]; rename: [id: strin
 
 const store = useCalendarsStore()
 const menuOpen = ref(false)
+const menuWrap = ref<HTMLElement | null>(null)
 
 function onColorInput(id: string, event: Event): void {
   const input = event.target as HTMLInputElement
@@ -23,7 +24,8 @@ function closeMenu(): void {
   menuOpen.value = false
 }
 function onDocumentMouseDown(event: MouseEvent): void {
-  if (!(event.target as HTMLElement)?.closest?.('.calendar-list__menu-wrap')) closeMenu()
+  // Per-instance check: another item's menu wrap shouldn't keep this one open.
+  if (!menuWrap.value?.contains(event.target as Node)) closeMenu()
 }
 onMounted(() => document.addEventListener('mousedown', onDocumentMouseDown))
 onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentMouseDown))
@@ -96,7 +98,7 @@ function onResetColorClick(id: string): void {
          inline) -- this item has up to 5 actions (rename/share/export/
          reset color/delete-or-unsubscribe), too many to fit inline.
          SubscriptionList uses the same menu for consistency. -->
-    <div class="calendar-list__menu-wrap">
+    <div ref="menuWrap" class="calendar-list__menu-wrap">
       <button type="button" class="calendar-list__menu-btn" title="More options" @click="toggleMenu">⋯</button>
       <ul v-if="menuOpen" class="calendar-list__menu">
         <li>
