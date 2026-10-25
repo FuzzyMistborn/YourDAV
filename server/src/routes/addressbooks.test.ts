@@ -301,6 +301,42 @@ describe('POST /api/addressbooks/:id/groups/members', () => {
     const res = await post({ items, add: 'g' })
     expect(res.json()).toEqual({ updated: 1, unchanged: 0, failed: 1 })
   })
+
+  it('processes cards concurrently, capped at 6 in flight', async () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({ href: `https://dav.example.com/a/${i}.vcf`, etag: `"${i}"` }))
+    let inFlight = 0
+    let maxInFlight = 0
+    storeMock.getCard.mockImplementation(async (_dav: unknown, _id: string, href: string) => {
+      inFlight++
+      maxInFlight = Math.max(maxInFlight, inFlight)
+      await new Promise((r) => setTimeout(r, 5))
+      inFlight--
+      return { href, etag: '"e"', vcard: CARD(href) }
+    })
+    app = await buildApp()
+    const res = await post({ items: many, add: 'g' })
+    expect(res.json()).toEqual({ updated: 20, unchanged: 0, failed: 0 })
+    expect(maxInFlight).toBeGreaterThan(1)
+    expect(maxInFlight).toBeLessThanOrEqual(6)
+  })
+
+  it('tallies mixed outcomes across concurrent cards', async () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ href: `https://dav.example.com/a/${i}.vcf`, etag: `"${i}"` }))
+    const index = (href: string) => Number(/(\d+)\.vcf$/.exec(href)![1])
+    // index % 3: 0 -> already in the group (unchanged), 1 -> updated, 2 -> update rejected (failed)
+    storeMock.getCard.mockImplementation(async (_dav: unknown, _id: string, href: string) => ({
+      href,
+      etag: '"e"',
+      vcard: index(href) % 3 === 0 ? CARD(`u${index(href)}`, 'CATEGORIES:g') : CARD(`u${index(href)}`),
+    }))
+    storeMock.updateCard.mockImplementation(async (_dav: unknown, _id: string, href: string) => {
+      if (index(href) % 3 === 2) throw new Error('412')
+      return { href, etag: '"x"', vcard: '' }
+    })
+    app = await buildApp()
+    const res = await post({ items: many, add: 'g' })
+    expect(res.json()).toEqual({ updated: 4, unchanged: 4, failed: 4 })
+  })
 })
 
 describe('mapConcurrent', () => {
