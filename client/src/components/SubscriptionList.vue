@@ -35,9 +35,12 @@ const addingHolidays = ref(false)
 const countries = ref<{ code: string; name: string }[]>([])
 const countriesError = ref(false)
 const selectedCountry = ref('')
+const includeObservances = ref(false)
 
 const addedCountryCodes = computed(
-  () => new Set(store.subscriptions.filter((s) => s.url.startsWith('holidays:')).map((s) => s.url.slice('holidays:'.length))),
+  () => new Set(
+    store.subscriptions.filter((s) => s.url.startsWith('holidays:')).map((s) => s.url.slice('holidays:'.length).split('?')[0]),
+  ),
 )
 
 async function toggleHolidays(): Promise<void> {
@@ -55,8 +58,13 @@ async function toggleHolidays(): Promise<void> {
 function submitHolidays(): void {
   const country = countries.value.find((c) => c.code === selectedCountry.value)
   if (!country) return
-  store.add(`${country.name} holidays`, `holidays:${country.code}`)
+  const withObservances = includeObservances.value
+  store.add(
+    `${country.name} holidays${withObservances ? ' & observances' : ''}`,
+    `holidays:${country.code}${withObservances ? '?observances' : ''}`,
+  )
   selectedCountry.value = ''
+  includeObservances.value = false
   addingHolidays.value = false
 }
 
@@ -91,6 +99,10 @@ function confirmRemove(): void {
           {{ c.name }}
         </option>
       </select>
+      <label class="subscription-list__check">
+        <input v-model="includeObservances" type="checkbox" />
+        <span>Include observances (Mother's Day, Valentine's Day, Easter Sunday…)</span>
+      </label>
       <div class="subscription-list__form-actions">
         <button type="button" class="btn btn-ghost" @click="addingHolidays = false">Cancel</button>
         <button type="submit" class="btn btn-primary" :disabled="!selectedCountry">Add</button>
@@ -147,6 +159,15 @@ function confirmRemove(): void {
 .subscription-list__holidays-btn {
   padding: 0.1rem 0.45rem;
   font-size: 0.72rem;
+}
+.subscription-list__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+}
+.subscription-list__check input {
+  margin-top: 0.15rem;
 }
 .subscription-list__form select {
   padding: 0.35rem 0.5rem;

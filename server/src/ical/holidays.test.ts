@@ -30,6 +30,20 @@ describe('holiday calendars', () => {
     expect(events.some((e) => e.summary === "Valentine's Day")).toBe(false)
   })
 
+  it('adds observances (but not optional days) with ?observances', () => {
+    const events = fetchHolidayEvents('holidays:US?observances', range2026)
+    const names = events.map((e) => e.summary)
+    expect(names).toContain("Valentine's Day")
+    expect(names).toContain("Mother's Day")
+    expect(names).toContain('Christmas Day')
+    expect(names).not.toContain('Christmas Eve')
+    expect(events.length).toBeGreaterThan(fetchHolidayEvents('holidays:US', range2026).length)
+  })
+
+  it('gives the two variants distinct calendar ids', () => {
+    expect(subscriptionCalendarId('holidays:US')).not.toBe(subscriptionCalendarId('holidays:US?observances'))
+  })
+
   it('only returns events inside the requested range', () => {
     const events = fetchHolidayEvents('holidays:US', { start: '2026-12-01T00:00:00.000Z', end: '2026-12-31T00:00:00.000Z' })
     expect(events.length).toBeGreaterThan(0)

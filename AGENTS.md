@@ -418,7 +418,8 @@ next saved.
   browser's. Last write wins. Enabled/disabled state is still per-session.
   **Holiday calendars**: a subscription whose URL is `holidays:<ISO country>`
   is generated locally from `date-holidays` (`ical/holidays.ts`; public + bank
-  holidays only, no observances; one all-day event per holiday, fed through
+  holidays by default, plus observances (Mother's Day, Valentine's Day, ...)
+  for `holidays:<code>?observances`; never the "optional" type; one all-day event per holiday, fed through
   `expandCalendarObject`) instead of fetched. The UI's "Holidays" button
   adds one (`GET /api/subscriptions/holiday-countries` lists countries), so
   persistence, color, toggle and removal come from the subscription list.

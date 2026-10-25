@@ -7,12 +7,14 @@ import { subscriptionCalendarId } from './subscription.js'
 /**
  * Built-in holiday calendars: a subscription whose URL is `holidays:<ISO
  * country code>` is generated locally from the date-holidays dataset rather
- * than fetched, so it works offline and needs no third-party feed. Only
- * public and bank holidays are emitted -- the dataset's "observance" type
- * includes things like Valentine's Day.
+ * than fetched, so it works offline and needs no third-party feed. By default
+ * only public and bank holidays are emitted; `holidays:<code>?observances`
+ * also adds the dataset's "observance" type (Valentine's Day, Mother's Day,
+ * Easter Sunday, ...). The dataset's "optional" type is never included.
  */
 export const HOLIDAYS_PREFIX = 'holidays:'
-const INCLUDED_TYPES = new Set(['public', 'bank'])
+const OBSERVANCES_FLAG = 'observances'
+const BASE_TYPES = ['public', 'bank']
 
 export function isHolidayUrl(url: string): boolean {
   return url.startsWith(HOLIDAYS_PREFIX)
@@ -39,8 +41,14 @@ function escapeText(value: string): string {
   return value.replace(/[\\;,]/g, (c) => `\\${c}`).replace(/\r?\n/g, '\\n')
 }
 
+function parseHolidayUrl(url: string): { code: string; observances: boolean } {
+  const [code, flag] = url.slice(HOLIDAYS_PREFIX.length).split('?')
+  return { code: code.toUpperCase(), observances: flag === OBSERVANCES_FLAG }
+}
+
 export function fetchHolidayEvents(url: string, range: TimeRange): CalendarObject[] {
-  const code = url.slice(HOLIDAYS_PREFIX.length).toUpperCase()
+  const { code, observances } = parseHolidayUrl(url)
+  const includedTypes = new Set(observances ? [...BASE_TYPES, 'observance'] : BASE_TYPES)
   if (!holidayCountries().some((c) => c.code === code)) {
     throw new Error(`Unknown holiday country "${code}"`)
   }
@@ -54,7 +62,7 @@ export function fetchHolidayEvents(url: string, range: TimeRange): CalendarObjec
 
   for (let year = startYear; year <= endYear; year++) {
     for (const h of hd.getHolidays(year)) {
-      if (!INCLUDED_TYPES.has(h.type)) continue
+      if (!includedTypes.has(h.type)) continue
       const day = h.date.slice(0, 10)
       const uid = `${createHash('sha256').update(`${code}|${day}|${h.name}`).digest('hex').slice(0, 24)}@holidays`
       if (seen.has(uid)) continue
