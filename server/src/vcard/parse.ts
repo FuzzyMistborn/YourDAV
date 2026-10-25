@@ -93,7 +93,7 @@ export function unescapeText(s: string): string {
 }
 
 export function escapeText(s: string): string {
-  return s.replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/;/g, '\\;').replace(/,/g, '\\,')
+  return s.replace(/\\/g, '\\\\').replace(/\r\n|\r|\n/g, '\\n').replace(/;/g, '\\;').replace(/,/g, '\\,')
 }
 
 /** Splits a structured value (N, ADR) on unescaped `;` and unescapes each part. */

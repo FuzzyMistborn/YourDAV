@@ -2,6 +2,7 @@ import type {
   CreateCalendarInput,
   CreateEventInput,
   DeleteEventInput,
+  EditScope,
   ShareCalendarInput,
   UpdateCalendarInput,
   UpdateEventInput,
@@ -24,6 +25,10 @@ import { EtagConflictError } from '../store/errors.js'
 import type { RawObject } from '../store/CalendarStore.js'
 import { store } from '../store/index.js'
 import { requireSession } from './requireSession.js'
+
+function isEditScope(scope: unknown): scope is EditScope {
+  return scope === 'this' || scope === 'thisAndFuture' || scope === 'all'
+}
 
 /**
  * Server-side gate for write routes: looks up the calendar via
@@ -401,6 +406,11 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send({ error: 'bad_request', message: 'href and etag are required' })
       }
       const { href, etag, fields, scope, recurrenceId } = req.body
+      if (!isEditScope(scope)) {
+        return reply
+          .code(400)
+          .send({ error: 'bad_request', message: 'scope must be this, thisAndFuture or all' })
+      }
       const calendarId = req.params.id
       const uid = req.params.uid
 
@@ -504,6 +514,11 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send({ error: 'bad_request', message: 'href and etag are required' })
       }
       const { href, etag, scope, recurrenceId } = req.body
+      if (!isEditScope(scope)) {
+        return reply
+          .code(400)
+          .send({ error: 'bad_request', message: 'scope must be this, thisAndFuture or all' })
+      }
       const calendarId = req.params.id
       const uid = req.params.uid
 
