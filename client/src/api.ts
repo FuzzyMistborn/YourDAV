@@ -141,7 +141,7 @@ export const api = {
     }),
   search: (q: string) => request<CalendarObject[]>(`/search?q=${encodeURIComponent(q)}`),
   importIcs: (calendarId: string, ics: string) =>
-    request<{ imported: number; total: number }>(`/calendars/${calendarId}/import`, {
+    request<{ imported: number; total: number; skipped: number }>(`/calendars/${calendarId}/import`, {
       method: 'POST',
       body: JSON.stringify({ ics }),
     }),

@@ -26,6 +26,10 @@ export const config = {
   allowedDavHosts: process.env.ALLOWED_DAV_HOSTS
     ? process.env.ALLOWED_DAV_HOSTS.split(',').map((h) => h.trim())
     : null,
+  // Max distinct events (UIDs) one ICS import will create; the rest are
+  // reported back as skipped. Each event is a separate write to the DAV
+  // server, so this bounds the upstream load of a single request.
+  maxImportEvents: Number(process.env.MAX_IMPORT_EVENTS ?? 5000),
   // Upper bound, in ms, on any single outbound request (DAV or
   // subscription feed) -- without it a server that accepts the connection
   // and then stalls would hold the request open forever.

@@ -14,7 +14,8 @@ import { shareCalendar, ShareFailedError } from '../dav/sharing.js'
 import type { DavContext } from '../dav/context.js'
 import * as editScope from '../ical/editScope.js'
 import { mergeIcsObjects } from '../ical/exportIcs.js'
-import { splitImportIcs } from '../ical/importIcs.js'
+import { splitImportIcsCapped } from '../ical/importIcs.js'
+import { config } from '../config.js'
 import { calendarObjectToIcs } from '../ical/mapper.js'
 import { eventFieldsError, timeRangeError } from '../ical/validate.js'
 import { decodeId } from '../store/idCodec.js'
@@ -347,7 +348,7 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
 
   // ICS exports of a few thousand events run well past Fastify's default
   // 1MB body limit; without this a large but legitimate import 413s before
-  // the handler (and its MAX_IMPORT_EVENTS cap) ever runs.
+  // the handler (and its maxImportEvents cap) ever runs.
   app.post<{ Params: { id: string }; Body: { ics: string } }>(
     '/:id/import',
     { bodyLimit: 25 * 1024 * 1024 },
@@ -361,8 +362,9 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
     }
 
     let icsGroups: string[]
+    let skipped: number
     try {
-      icsGroups = splitImportIcs(req.body.ics)
+      ;({ groups: icsGroups, skipped } = splitImportIcsCapped(req.body.ics))
     } catch {
       return reply.code(400).send({ error: 'bad_request', message: 'Could not parse ICS file' })
     }
@@ -379,7 +381,8 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
         req.log.warn({ err }, 'Failed to import one event from ICS file; continuing with the rest')
       }
     }
-    return reply.send({ imported, total: icsGroups.length })
+    if (skipped > 0) req.log.warn({ skipped, limit: config.maxImportEvents }, 'ICS import hit MAX_IMPORT_EVENTS; events skipped')
+    return reply.send({ imported, total: icsGroups.length + skipped, skipped })
   })
 
   app.put<{ Params: { id: string; uid: string }; Body: UpdateEventInput }>(
