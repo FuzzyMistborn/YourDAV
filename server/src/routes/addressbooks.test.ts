@@ -17,7 +17,7 @@ const storeMock: Record<string, ReturnType<typeof vi.fn>> = {
 }
 vi.mock('../store/contacts.js', () => ({ contactStore: storeMock }))
 
-const { addressBookRoutes, mapConcurrent } = await import('./addressbooks.js')
+const { addressBookRoutes } = await import('./addressbooks.js')
 const { ContactNotFoundError } = await import('../store/errors.js')
 
 const dav: DavContext = { baseUrl: 'https://dav.example.com/dav/', username: 'alice', password: 'secret' }
@@ -339,28 +339,6 @@ describe('POST /api/addressbooks/:id/groups/members', () => {
   })
 })
 
-describe('mapConcurrent', () => {
-  it('returns empty array when items are empty', async () => {
-    const res = await mapConcurrent([], 5, async (x) => x)
-    expect(res).toEqual([])
-  })
-
-  it('respects concurrency limit and preserves result order', async () => {
-    let inFlight = 0
-    let maxInFlight = 0
-    const items = [10, 20, 30, 40, 50]
-    const res = await mapConcurrent(items, 2, async (val, idx) => {
-      inFlight++
-      maxInFlight = Math.max(maxInFlight, inFlight)
-      await new Promise((r) => setTimeout(r, 10))
-      inFlight--
-      return `${idx}:${val}`
-    })
-    expect(maxInFlight).toBe(2)
-    expect(res).toEqual(['0:10', '1:20', '2:30', '3:40', '4:50'])
-  })
-})
-
 describe('POST /api/addressbooks/:id/groups/rename', () => {
   const post = (payload: unknown) =>
     app.inject({ method: 'POST', url: '/api/addressbooks/a/groups/rename', payload: payload as object })
@@ -429,5 +407,64 @@ describe('POST /api/addressbooks/:id/groups/rename', () => {
     app = await buildApp()
     const res = await post({ from: 'old', to: 'fresh' })
     expect(res.json()).toEqual({ updated: 1, failed: 1 })
+  })
+})
+
+describe('POST /api/addressbooks/:id/import', () => {
+  // index.ts registers the text body parser the real app uses for .vcf uploads.
+  const buildImportApp = async () => {
+    const importApp = Fastify()
+    importApp.decorateRequest('session', null as never)
+    importApp.addHook('onRequest', async (req) => {
+      req.session = { get: (key: string) => (key === 'dav' ? dav : undefined) } as never
+    })
+    importApp.addContentTypeParser('text/vcard', { parseAs: 'string' }, (_req, body, done) => done(null, body))
+    await importApp.register(addressBookRoutes, { prefix: '/api/addressbooks' })
+    return importApp
+  }
+  const post = (payload: string) =>
+    app.inject({
+      method: 'POST',
+      url: '/api/addressbooks/a/import',
+      payload,
+      headers: { 'content-type': 'text/vcard' },
+    })
+
+  beforeEach(() => {
+    storeMock.discoverAddressBooks.mockResolvedValue([book('a')])
+    storeMock.getCards.mockResolvedValue([])
+    storeMock.createCard.mockResolvedValue({ href: '', etag: '"x"', vcard: '' })
+  })
+
+  it('creates cards concurrently, capped at 6 in flight', async () => {
+    let inFlight = 0
+    let maxInFlight = 0
+    storeMock.createCard.mockImplementation(async () => {
+      inFlight++
+      maxInFlight = Math.max(maxInFlight, inFlight)
+      await new Promise((r) => setTimeout(r, 5))
+      inFlight--
+      return { href: '', etag: '"x"', vcard: '' }
+    })
+    app = await buildImportApp()
+    const res = await post(Array.from({ length: 20 }, (_, i) => CARD(`u${i}`)).join(''))
+    expect(res.json()).toEqual({ imported: 20, skipped: 0 })
+    expect(maxInFlight).toBeGreaterThan(1)
+    expect(maxInFlight).toBeLessThanOrEqual(6)
+  })
+
+  it('creates a UID that appears twice in one file only once', async () => {
+    app = await buildImportApp()
+    const res = await post([CARD('dup'), CARD('other'), CARD('dup')].join(''))
+    expect(res.json()).toEqual({ imported: 2, skipped: 1 })
+    expect(storeMock.createCard).toHaveBeenCalledTimes(2)
+  })
+
+  it('skips cards already in the book and counts rejected ones as skipped', async () => {
+    storeMock.getCards.mockResolvedValue([{ href: 'https://dav.example.com/a/1.vcf', etag: '"1"', vcard: CARD('have') }])
+    storeMock.createCard.mockRejectedValueOnce(new Error('rejected')).mockResolvedValue({ href: '', etag: '"x"', vcard: '' })
+    app = await buildImportApp()
+    const res = await post([CARD('have'), CARD('bad'), CARD('good')].join(''))
+    expect(res.json()).toEqual({ imported: 1, skipped: 2 })
   })
 })

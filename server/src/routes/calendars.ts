@@ -15,6 +15,7 @@ import type { DavContext } from '../dav/context.js'
 import * as editScope from '../ical/editScope.js'
 import { mergeIcsObjects } from '../ical/exportIcs.js'
 import { splitImportIcsCapped } from '../ical/importIcs.js'
+import { DAV_WRITE_CONCURRENCY, mapConcurrent } from '../concurrency.js'
 import { config } from '../config.js'
 import { calendarObjectToIcs } from '../ical/mapper.js'
 import { eventFieldsError, timeRangeError } from '../ical/validate.js'
@@ -376,14 +377,14 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
     }
 
     let imported = 0
-    for (const ics of icsGroups) {
+    await mapConcurrent(icsGroups, DAV_WRITE_CONCURRENCY, async (ics) => {
       try {
         await store.createObject(dav, req.params.id, ics)
         imported++
       } catch (err) {
         req.log.warn({ err }, 'Failed to import one event from ICS file; continuing with the rest')
       }
-    }
+    })
     if (skipped > 0) req.log.warn({ skipped, limit: config.maxImportEvents }, 'ICS import hit MAX_IMPORT_EVENTS; events skipped')
     return reply.send({ imported, total: icsGroups.length + skipped, skipped })
   })

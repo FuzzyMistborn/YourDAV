@@ -24,6 +24,7 @@ import {
   splitVcf,
   vcardToContact,
 } from '../vcard/card.js'
+import { DAV_WRITE_CONCURRENCY, mapConcurrent } from '../concurrency.js'
 import type { DavContext } from '../dav/context.js'
 import { ContactNotFoundError, EtagConflictError } from '../store/errors.js'
 import { encodeId } from '../store/idCodec.js'
@@ -32,26 +33,6 @@ import { contactStore } from '../store/contacts.js'
 import { requireSession } from './requireSession.js'
 
 const MAX_PHOTO_BYTES = 2 * 1024 * 1024
-
-/** Runs `fn` over `items` with at most `limit` asynchronous invocations in flight concurrently. */
-export async function mapConcurrent<T, R>(
-  items: readonly T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = []
-  let nextIdx = 0
-  const workerCount = Math.min(limit, items.length)
-  if (workerCount === 0) return results
-  const workers = Array.from({ length: workerCount }, async () => {
-    while (nextIdx < items.length) {
-      const idx = nextIdx++
-      results[idx] = await fn(items[idx], idx)
-    }
-  })
-  await Promise.all(workers)
-  return results
-}
 
 function toContact(addressBookId: string, card: RawCard): Contact {
   return vcardToContact(card.vcard, addressBookId, encodeId(card.href), card.href, card.etag)
@@ -228,6 +209,9 @@ export async function addressBookRoutes(app: FastifyInstance): Promise<void> {
 
     const existing = new Set((await contactStore.getCards(dav, req.params.id)).map((c) => vcardToContact(c.vcard, '', '', '', '').uid))
     const result: ImportResult = { imported: 0, skipped: 0 }
+    // Dedupe up front, in file order, so the parallel creates below can't race
+    // on a UID that appears twice in the same file.
+    const toCreate: string[] = []
     for (const raw of splitVcf(req.body)) {
       // A card with no UID gets one derived from its content, so importing the
       // same file twice skips it rather than duplicating it.
@@ -236,15 +220,18 @@ export async function addressBookRoutes(app: FastifyInstance): Promise<void> {
         result.skipped++
         continue
       }
+      existing.add(uid)
+      toCreate.push(card)
+    }
+    await mapConcurrent(toCreate, DAV_WRITE_CONCURRENCY, async (card) => {
       try {
         await contactStore.createCard(dav, req.params.id, card)
-        existing.add(uid)
         result.imported++
       } catch (e) {
         req.log.warn({ err: e }, 'vCard import: card rejected')
         result.skipped++
       }
-    }
+    })
     return reply.send(result)
   })
 
@@ -262,7 +249,7 @@ export async function addressBookRoutes(app: FastifyInstance): Promise<void> {
       .filter((c): c is { card: RawCard; next: string } => c.next !== null)
 
     const result: RenameGroupResult = { updated: 0, failed: 0 }
-    await mapConcurrent(cards, 6, async ({ card, next }) => {
+    await mapConcurrent(cards, DAV_WRITE_CONCURRENCY, async ({ card, next }) => {
       try {
         await contactStore.updateCard(dav, req.params.id, card.href, card.etag, next)
         result.updated++
@@ -338,7 +325,7 @@ export async function addressBookRoutes(app: FastifyInstance): Promise<void> {
     if (!(await writable(dav, req.params.id, reply))) return
 
     const result: GroupMembersResult = { updated: 0, unchanged: 0, failed: 0 }
-    await mapConcurrent(items, 6, async (item) => {
+    await mapConcurrent(items, DAV_WRITE_CONCURRENCY, async (item) => {
       try {
         const card = await contactStore.getCard(dav, req.params.id, item.href)
         const next = editCategories(card.vcard, add ? { add } : { remove })

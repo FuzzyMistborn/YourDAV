@@ -301,3 +301,54 @@ describe('DELETE /api/calendars/:id', () => {
     expect(storeMock.deleteCalendar).toHaveBeenCalledWith(dav, CAL_ID)
   })
 })
+
+describe('POST /api/calendars/:id/import', () => {
+  const ics = (count: number) =>
+    [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//test//EN',
+      ...Array.from({ length: count }, (_, i) => [
+        'BEGIN:VEVENT',
+        `UID:import-${i}`,
+        'DTSTAMP:20260101T000000Z',
+        `DTSTART:20260201T0${i % 10}0000Z`,
+        `SUMMARY:Event ${i}`,
+        'END:VEVENT',
+      ]).flat(),
+      'END:VCALENDAR',
+      '',
+    ].join('\r\n')
+  const post = (app: FastifyInstance, body: string) =>
+    app.inject({ method: 'POST', url: `/api/calendars/${CAL_ID}/import`, payload: { ics: body } })
+
+  beforeEach(() => {
+    storeMock.discoverCalendars.mockResolvedValue([calendar()])
+    storeMock.createObject.mockResolvedValue({})
+  })
+
+  it('creates events concurrently, capped at 6 in flight', async () => {
+    let inFlight = 0
+    let maxInFlight = 0
+    storeMock.createObject.mockImplementation(async () => {
+      inFlight++
+      maxInFlight = Math.max(maxInFlight, inFlight)
+      await new Promise((r) => setTimeout(r, 5))
+      inFlight--
+      return {}
+    })
+    const app = await buildApp()
+    const res = await post(app, ics(20))
+    expect(res.json()).toEqual({ imported: 20, total: 20, skipped: 0 })
+    expect(maxInFlight).toBeGreaterThan(1)
+    expect(maxInFlight).toBeLessThanOrEqual(6)
+  })
+
+  it('counts a failing event without aborting the rest', async () => {
+    storeMock.createObject.mockRejectedValueOnce(new Error('rejected')).mockResolvedValue({})
+    const app = await buildApp()
+    const res = await post(app, ics(5))
+    expect(res.json()).toEqual({ imported: 4, total: 5, skipped: 0 })
+    expect(storeMock.createObject).toHaveBeenCalledTimes(5)
+  })
+})
