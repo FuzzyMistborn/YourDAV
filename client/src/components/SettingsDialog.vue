@@ -9,6 +9,7 @@ import {
   type AddressFormat,
   type CalendarSortOrder,
   type CalendarViewType,
+  type ContactSortOrder,
   type DefaultCalendarMode,
   type Theme,
   type TimeFormat,
@@ -39,6 +40,11 @@ const timeFormatModel = computed<TimeFormat>({
 const addressFormatModel = computed<AddressFormat>({
   get: () => settingsStore.addressFormat,
   set: (value) => settingsStore.setAddressFormat(value),
+})
+
+const contactSortOrderModel = computed<ContactSortOrder>({
+  get: () => settingsStore.contactSortOrder,
+  set: (value) => settingsStore.setContactSortOrder(value),
 })
 
 const defaultViewModel = computed<CalendarViewType>({
@@ -212,6 +218,14 @@ function toggleDefaultVisible(id: string): void {
         <select v-model="addressFormatModel">
           <option value="us">US</option>
           <option value="intl">International</option>
+        </select>
+      </label>
+
+      <label class="dialog__field dialog__field--row" title="Which name contacts are sorted by first.">
+        <span>Sort contacts by</span>
+        <select v-model="contactSortOrderModel">
+          <option value="last-first">Last name</option>
+          <option value="first-last">First name</option>
         </select>
       </label>
 

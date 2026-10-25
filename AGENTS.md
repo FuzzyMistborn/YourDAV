@@ -856,7 +856,10 @@ the app ends the session with a 401, which is the intended behaviour.
   book is an address-book id or `ALL_BOOKS` (`'all'`), the combined view, which
   is the default when there are two or more books. A remembered book that no
   longer exists falls back to the combined view (or the only book).
-  Search, group filter and sort are client-side. The store also holds the
+  Search, group filter and sort are client-side. Sort is by family then given
+  name (or given then family, per the `contacts.sortOrder` setting); empty name
+  parts are dropped from the key so single-name contacts don't sort first.
+  The store also holds the
   checked set for batch actions and the move/copy/merge/batch operations.
 - **Popovers and pointer events.** Menus (`BookMenu`, `GroupMenu`) are
   teleported to `<body>` and `position: fixed` via `lib/popover.ts`, so the

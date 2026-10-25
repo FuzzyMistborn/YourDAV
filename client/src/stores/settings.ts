@@ -27,6 +27,9 @@ export type Theme = 'auto' | 'light' | 'dark'
 // 'us': street, city, state, ZIP.  'intl': postal code before the city.
 export type AddressFormat = 'us' | 'intl'
 
+// Which name part contacts sort by first.
+export type ContactSortOrder = 'last-first' | 'first-last'
+
 export const DEFAULT_EVENT_LENGTHS = [15, 30, 45, 60, 90, 120] as const
 
 const STORAGE_KEY = 'calendar.weekStart'
@@ -45,6 +48,7 @@ const SCROLL_HOUR_STORAGE_KEY = 'calendar.scrollHour'
 const DEFAULT_EVENT_LENGTH_STORAGE_KEY = 'calendar.defaultEventLength'
 const DEFAULT_REMINDER_STORAGE_KEY = 'calendar.defaultReminder'
 const ADDRESS_FORMAT_STORAGE_KEY = 'contacts.addressFormat'
+const CONTACT_SORT_ORDER_STORAGE_KEY = 'contacts.sortOrder'
 
 const VALID_VIEWS: CalendarViewType[] = ['multiMonthYear', 'dayGridMonth', 'timeGridWeek', 'timeGridDay', 'listUpcoming']
 
@@ -90,6 +94,10 @@ function loadAddressFormat(): AddressFormat {
   return localStorage.getItem(ADDRESS_FORMAT_STORAGE_KEY) === 'intl' ? 'intl' : 'us'
 }
 
+function loadContactSortOrder(): ContactSortOrder {
+  return localStorage.getItem(CONTACT_SORT_ORDER_STORAGE_KEY) === 'first-last' ? 'first-last' : 'last-first'
+}
+
 function loadDefaultCalendarMode(): DefaultCalendarMode {
   return localStorage.getItem(DEFAULT_CALENDAR_MODE_STORAGE_KEY) === 'last-used' ? 'last-used' : 'fixed'
 }
@@ -131,6 +139,7 @@ export const useSettingsStore = defineStore('settings', () => {
   )
   const defaultReminder = ref<number | null>(loadDefaultReminder())
   const addressFormat = ref<AddressFormat>(loadAddressFormat())
+  const contactSortOrder = ref<ContactSortOrder>(loadContactSortOrder())
 
   // The resolved theme lands on <html data-theme="light|dark">, which
   // base.css keys its dark token overrides off. Applied here (not in a
@@ -229,6 +238,11 @@ export const useSettingsStore = defineStore('settings', () => {
     localStorage.setItem(ADDRESS_FORMAT_STORAGE_KEY, value)
   }
 
+  function setContactSortOrder(value: ContactSortOrder): void {
+    contactSortOrder.value = value
+    localStorage.setItem(CONTACT_SORT_ORDER_STORAGE_KEY, value)
+  }
+
   return {
     weekStart,
     firstDay,
@@ -263,5 +277,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setDefaultReminder,
     addressFormat,
     setAddressFormat,
+    contactSortOrder,
+    setContactSortOrder,
   }
 })

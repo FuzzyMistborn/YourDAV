@@ -2,6 +2,7 @@ import type { AddressBook, Contact, ContactInput } from '@yourdav/shared'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api, ApiRequestError } from '../api.js'
+import { useSettingsStore, type ContactSortOrder } from './settings.js'
 
 const FRESH_MS = 30_000
 const STORAGE_KEY_ACTIVE_BOOK = 'yourdav:active-address-book'
@@ -17,10 +18,16 @@ export interface BatchResult {
   failed: number
 }
 
-/** Sort key: family name, then given name, falling back to the display name. */
-function sortKey(c: Contact): string {
+/**
+ * Sort key: family and given name in the chosen order, falling back to the
+ * display name. Empty parts are dropped so a contact with only one name
+ * doesn't start with a space and sort ahead of everyone.
+ */
+function sortKey(c: Contact, order: ContactSortOrder = 'last-first'): string {
   const { family, given } = c.name
-  return (family || given ? `${family} ${given}` : c.fullName).toLocaleLowerCase()
+  const parts = order === 'first-last' ? [given, family] : [family, given]
+  const key = parts.filter(Boolean).join(' ')
+  return (key || c.fullName).toLocaleLowerCase()
 }
 
 function searchText(c: Contact): string {
@@ -61,6 +68,7 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 export const useContactsStore = defineStore('contacts', () => {
+  const settings = useSettingsStore()
   const addressBooks = ref<AddressBook[]>([])
   /** An address book id, ALL_BOOKS, or null before anything has loaded. */
   const activeBookId = ref<string | null>(readActiveBook())
@@ -107,6 +115,7 @@ export const useContactsStore = defineStore('contacts', () => {
   const filteredContacts = computed(() => {
     const q = searchQuery.value.trim().toLocaleLowerCase()
     const qDigits = q.replace(/[^\d+]/g, '')
+    const order = settings.contactSortOrder
     return contacts.value
       .filter((c) => {
         if (selectedGroup.value === UNGROUPED) return c.categories.length === 0
@@ -118,7 +127,7 @@ export const useContactsStore = defineStore('contacts', () => {
         const text = searchText(c)
         return text.includes(q) || (qDigits.length >= 3 && text.includes(qDigits))
       })
-      .sort((a, b) => sortKey(a).localeCompare(sortKey(b)))
+      .sort((a, b) => sortKey(a, order).localeCompare(sortKey(b, order)))
   })
 
   const selectedContact = computed(() => contacts.value.find((c) => c.id === selectedId.value) ?? null)
