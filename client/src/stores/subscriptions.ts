@@ -114,6 +114,24 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
     persist()
   }
 
+  /** Renames a subscription and/or points it at a different feed. */
+  function update(id: string, changes: { name?: string; url?: string }): void {
+    const sub = subscriptions.value.find((s) => s.id === id)
+    if (!sub) return
+    const urlChanged = changes.url !== undefined && changes.url !== sub.url
+    if (changes.name !== undefined) sub.name = changes.name
+    if (changes.url !== undefined) sub.url = changes.url
+    if (urlChanged) {
+      // Events cached under the old feed would otherwise linger until the
+      // next successful fetch of the new one.
+      for (const key of Object.keys(byRange.value)) {
+        if (key.startsWith(`${id}:`)) delete byRange.value[key]
+      }
+      delete errors[id]
+    }
+    persist()
+  }
+
   function remove(id: string): void {
     subscriptions.value = subscriptions.value.filter((s) => s.id !== id)
     delete enabled[id]
@@ -157,5 +175,5 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
       .flatMap((s) => byRange.value[rangeKey(s.id, start, end)] ?? [])
   }
 
-  return { subscriptions, enabled, errors, serverBacked, init, add, remove, toggle, setColor, loadRange, eventsFor }
+  return { subscriptions, enabled, errors, serverBacked, init, add, update, remove, toggle, setColor, loadRange, eventsFor }
 })

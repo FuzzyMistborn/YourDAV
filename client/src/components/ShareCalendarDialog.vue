@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import type { OwnedShare, SharePermission, ShareCalendarResult } from '@yourdav/shared'
-import { onMounted, reactive, ref } from 'vue'
+import { nextTick, onMounted, reactive, ref } from 'vue'
 import { api, ApiRequestError } from '../api.js'
 
 const props = defineProps<{ calendarId: string; calendarName: string }>()
 const emit = defineEmits<{ close: [] }>()
 
 const recipient = ref('')
+const recipientInput = ref<HTMLInputElement | null>(null)
 const permission = ref<SharePermission>('readwrite')
 const submitting = ref(false)
 const error = ref<string | null>(null)
@@ -34,7 +35,12 @@ async function loadShares(): Promise<void> {
     sharesLoading.value = false
   }
 }
-onMounted(loadShares)
+onMounted(() => {
+  void loadShares()
+  // The bare `autofocus` attribute isn't reliably honored for a dialog
+  // mounted after page load -- focus the recipient field explicitly.
+  void nextTick(() => recipientInput.value?.focus())
+})
 
 async function onPermissionChange(share: OwnedShare, newPermission: SharePermission): Promise<void> {
   rowBusy[share.token] = true
@@ -138,7 +144,7 @@ async function submit(): Promise<void> {
         </p>
         <label class="dialog__field">
           <span>Recipient</span>
-          <input v-model="recipient" type="text" placeholder="username or email" autofocus />
+          <input ref="recipientInput" v-model="recipient" type="text" placeholder="username or email" />
         </label>
         <label class="dialog__field">
           <span>Access</span>

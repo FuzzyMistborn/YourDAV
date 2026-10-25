@@ -17,6 +17,7 @@ import {
   escapeXml,
   listRadicaleSharedPaths,
   ShareFailedError,
+  fetchCalendarDisplayName,
   syncShareDisplayNames,
   unsubscribeFromCalendar,
 } from '../dav/sharing.js'
@@ -130,6 +131,10 @@ export class DavCalendarStore implements CalendarStore {
       return existing
     }
 
+    // Read before the PROPPATCH below overwrites it: syncShareDisplayNames
+    // needs it to tell shares still following this name from recipient renames.
+    const previousName = input.displayName !== undefined ? await fetchCalendarDisplayName(ctx, url) : null
+
     const response = await davFetch(ctx, url, {
       method: 'PROPPATCH',
       headers: { 'Content-Type': 'application/xml' },
@@ -158,7 +163,7 @@ export class DavCalendarStore implements CalendarStore {
     if (input.displayName !== undefined) {
       // Best-effort: keeps any existing Radicale shares' stashed display
       // name (see sharing.ts's tryRadicaleShare) in sync with the rename.
-      await syncShareDisplayNames(ctx, new URL(url).pathname, input.displayName)
+      await syncShareDisplayNames(ctx, new URL(url).pathname, input.displayName, previousName)
     }
 
     const updated = (await this.discoverCalendars(ctx)).find((c) => c.id === calendarId)

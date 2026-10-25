@@ -31,9 +31,9 @@ function onShareClick(id: string, name: string): void {
   sharingCalendar.value = { id, name }
 }
 
-const renamingCalendar = ref<{ id: string; name: string; color: string } | null>(null)
-function onRenameClick(id: string, name: string, color: string): void {
-  renamingCalendar.value = { id, name, color }
+const renamingCalendar = ref<{ id: string; name: string; color: string; shared: boolean } | null>(null)
+function onRenameClick(id: string, name: string, color: string, shared: boolean): void {
+  renamingCalendar.value = { id, name, color, shared }
 }
 
 const showNewForm = ref(false)
@@ -123,7 +123,7 @@ async function submitNewCalendar(): Promise<void> {
     <template v-if="sharedCalendars.length > 0">
       <h2 class="calendar-list__heading calendar-list__heading--shared">Shared with me</h2>
       <ul>
-        <CalendarListItem v-for="cal in sharedCalendars" :key="cal.id" :cal="cal" @share="onShareClick" />
+        <CalendarListItem v-for="cal in sharedCalendars" :key="cal.id" :cal="cal" @share="onShareClick" @rename="onRenameClick" />
       </ul>
     </template>
 
@@ -138,6 +138,7 @@ async function submitNewCalendar(): Promise<void> {
       :calendar-id="renamingCalendar.id"
       :calendar-name="renamingCalendar.name"
       :calendar-color="renamingCalendar.color"
+      :shared="renamingCalendar.shared"
       @close="renamingCalendar = null"
     />
   </div>

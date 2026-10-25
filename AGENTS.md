@@ -491,6 +491,30 @@ Both sharing plugins are unconditionally registered in Baikal 0.11.1
 Share management (list → update read↔readwrite → revoke) is verified against
 Baikal 0.11.1 (Basic) via the sharing routes.
 
+### Renaming shared calendars
+
+Checked against both servers (2026-10):
+
+- **Recipient rename** is a plain `PROPPATCH displayname` on the recipient's own
+  mount, and is private to them on both: the owner's name is untouched.
+  `PATCH /api/calendars/:id` therefore allows a name-only change on a shared
+  calendar (color stays owner-only; recipients recolor locally in the browser).
+  Works on read-only shares too.
+- **Radicale**: the recipient's name is stored in the share record's
+  `Properties` overlay (same place the owner's share-time name goes), and an
+  un-overridden share follows the owner's name live. `syncShareDisplayNames()`
+  only rewrites a share whose stashed name is absent or still the owner's
+  *previous* name (`shareNameFollowsOwner`), otherwise an owner rename would
+  clobber the recipient's own name.
+- **Baikal**: each shared instance has its own displayname, copied at share
+  time. The owner can't PROPPATCH the recipient's instance (403) and the
+  recipient can't read the owner's calendar (403), so an owner rename
+  **does not reach Baikal recipients** and can't over DAV. Not fixable short of
+  re-sharing, which would change the calendar's URL and wipe their own name.
+- The client re-reads the calendar list on tab refocus and on the 5-minute
+  timer (not just the events), which is how a Radicale recipient sees an owner
+  rename without reloading.
+
 ### App surface
 
 - `POST /api/calendars/:id/share` (`shareCalendar()` in

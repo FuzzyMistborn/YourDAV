@@ -28,7 +28,7 @@ export function escapeXml(value: string): string {
  * confirmed by testing, contradicting this file's older assumption that
  * pre-acceptance PROPFIND always works).
  */
-async function fetchCalendarDisplayName(ctx: DavContext, calendarUrl: string): Promise<string | null> {
+export async function fetchCalendarDisplayName(ctx: DavContext, calendarUrl: string): Promise<string | null> {
   try {
     const res = await davFetch(ctx, calendarUrl, {
       method: 'PROPFIND',
@@ -295,7 +295,7 @@ export async function shareCalendar(
  * disabled) will fail this call in some server-specific way -- treated as
  * "no Radicale shares" rather than failing calendar discovery outright.
  */
-interface RadicaleMapEntry {
+export interface RadicaleMapEntry {
   User?: string
   Owner?: string
   PathOrToken?: string
@@ -345,10 +345,27 @@ async function fetchRadicaleMapList(ctx: DavContext): Promise<RadicaleMapEntry[]
  * from DavCalendarStore.updateCalendar right after a successful PROPPATCH.
  * Best-effort/fails-open: a rename shouldn't fail just because this
  * bookkeeping call did.
+ *
+ * A recipient who renames the shared calendar for themselves writes into this
+ * same record (verified against Radicale), so a share is only touched while
+ * its stashed name is still the owner's `previousName` (or was never set) --
+ * anything else is the recipient's own name and must survive the rename.
  */
-export async function syncShareDisplayNames(ctx: DavContext, pathMapped: string, displayName: string): Promise<void> {
+export function shareNameFollowsOwner(entry: RadicaleMapEntry, previousName: string | null): boolean {
+  const stashed = entry.Properties?.['D:displayname']
+  return stashed === undefined || stashed === null || (previousName !== null && stashed === previousName)
+}
+
+export async function syncShareDisplayNames(
+  ctx: DavContext,
+  pathMapped: string,
+  displayName: string,
+  previousName: string | null,
+): Promise<void> {
   const entries = await fetchRadicaleMapList(ctx)
-  const owned = entries.filter((e) => e.Owner === ctx.username && e.PathMapped === pathMapped && e.PathOrToken)
+  const owned = entries.filter(
+    (e) => e.Owner === ctx.username && e.PathMapped === pathMapped && e.PathOrToken && shareNameFollowsOwner(e, previousName),
+  )
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json' }
   for (const entry of owned) {
     try {

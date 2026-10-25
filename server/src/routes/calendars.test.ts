@@ -265,6 +265,25 @@ describe('PUT /api/calendars/:id/events/:uid (etag conflict)', () => {
   })
 })
 
+describe('PATCH /api/calendars/:id', () => {
+  it('lets the recipient of a shared calendar rename it', async () => {
+    storeMock.discoverCalendars.mockResolvedValue([calendar({ isShared: true })])
+    storeMock.updateCalendar.mockResolvedValue(calendar({ isShared: true, displayName: 'Mine' }))
+    const app = await buildApp()
+    const res = await app.inject({ method: 'PATCH', url: `/api/calendars/${CAL_ID}`, payload: { displayName: 'Mine' } })
+    expect(res.statusCode).toBe(200)
+    expect(storeMock.updateCalendar).toHaveBeenCalledWith(dav, CAL_ID, { displayName: 'Mine' })
+  })
+
+  it('403s when the recipient of a shared calendar tries to recolor it', async () => {
+    storeMock.discoverCalendars.mockResolvedValue([calendar({ isShared: true })])
+    const app = await buildApp()
+    const res = await app.inject({ method: 'PATCH', url: `/api/calendars/${CAL_ID}`, payload: { color: '#00ff00' } })
+    expect(res.statusCode).toBe(403)
+    expect(storeMock.updateCalendar).not.toHaveBeenCalled()
+  })
+})
+
 describe('DELETE /api/calendars/:id', () => {
   it('403s when trying to delete a calendar shared to (not owned by) the caller', async () => {
     storeMock.discoverCalendars.mockResolvedValue([calendar({ isShared: true })])
