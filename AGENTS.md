@@ -394,7 +394,13 @@ next saved.
   VCALENDAR per source UID (master + its RECURRENCE-ID overrides), assigns
   each a **fresh** UID (avoids collisions), creates via the normal
   `store.createObject`. Partial failure doesn't abort
-  (`imported`/`total`).
+  (`imported`/`total`/`skipped`). Cap is `MAX_IMPORT_EVENTS` (default 5000);
+  events past it are counted in `skipped`, logged, and shown in the dialog.
+  **Future idea (if big imports still bite):** client-side chunked import --
+  split the file into batches of whole UID groups (never cut a master from
+  its RECURRENCE-ID overrides), POST each in turn with progress, and report a
+  combined total. Caveat: imports assign fresh UIDs, so retrying a failed or
+  partly-applied chunk duplicates events; track completed chunks to avoid it.
 - **Subscriptions** — `GET /api/subscriptions/events?url=&start=&end=`
   (`server/src/ical/subscription.ts`). Fetches an external
   http(s)/webcal URL server-side, parses like import, returns

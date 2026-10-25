@@ -1,9 +1,10 @@
 import ICAL from 'ical.js'
+import { config } from '../config.js'
 
-// Caps the number of events a single import can create -- each accepted
-// group becomes its own createObject() call against the DAV server, so an
-// unbounded file could turn one request into thousands of upstream writes.
-export const MAX_IMPORT_EVENTS = 1000
+// The cap on events a single import can create lives in
+// config.maxImportEvents (MAX_IMPORT_EVENTS) -- each accepted group becomes
+// its own createObject() call against the DAV server, so an unbounded file
+// could turn one request into thousands of upstream writes.
 
 /**
  * Splits an uploaded .ics file (which may contain many events, e.g. an
@@ -28,11 +29,19 @@ function cloneComponent(c: ICAL.Component): ICAL.Component {
   return new ICAL.Component(JSON.parse(JSON.stringify(c.toJSON())))
 }
 
-export function splitImportIcs(icsText: string): string[] {
+export function splitImportIcs(icsText: string, limit = config.maxImportEvents): string[] {
+  return splitImportIcsCapped(icsText, limit).groups
+}
+
+/** Like splitImportIcs, but also reports how many events were dropped by the cap. */
+export function splitImportIcsCapped(
+  icsText: string,
+  limit = config.maxImportEvents,
+): { groups: string[]; skipped: number } {
   const jcal = ICAL.parse(icsText)
   const comp = new ICAL.Component(jcal)
   const vevents = comp.getAllSubcomponents('vevent')
-  if (vevents.length === 0) return []
+  if (vevents.length === 0) return { groups: [], skipped: 0 }
 
   // Imported VEVENTs keep referencing their original TZIDs (e.g.
   // DTSTART;TZID=America/New_York:...), but each import group becomes its
@@ -56,7 +65,7 @@ export function splitImportIcs(icsText: string): string[] {
   }
 
   const results: string[] = []
-  for (const components of Array.from(groups.values()).slice(0, MAX_IMPORT_EVENTS)) {
+  for (const components of Array.from(groups.values()).slice(0, limit)) {
     const newUid = crypto.randomUUID()
     const newCal = new ICAL.Component(['vcalendar', [], []])
     newCal.updatePropertyWithValue('prodid', '-//calendar//standalone//EN')
@@ -77,5 +86,5 @@ export function splitImportIcs(icsText: string): string[] {
     }
     results.push(newCal.toString())
   }
-  return results
+  return { groups: results, skipped: Math.max(0, groups.size - limit) }
 }

@@ -26,6 +26,10 @@ export const config = {
   allowedDavHosts: process.env.ALLOWED_DAV_HOSTS
     ? process.env.ALLOWED_DAV_HOSTS.split(',').map((h) => h.trim())
     : null,
+  // Max distinct events (UIDs) one ICS import will create; the rest are
+  // reported back as skipped. Each event is a separate write to the DAV
+  // server, so this bounds the upstream load of a single request.
+  maxImportEvents: Number(process.env.MAX_IMPORT_EVENTS ?? 5000),
   // Lets subscriptions fetch from LAN addresses (RFC1918, CGNAT, IPv6
   // unique-local). Loopback and link-local (cloud metadata) stay blocked.
   // Only enable on an instance whose users you trust.

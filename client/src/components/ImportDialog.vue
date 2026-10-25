@@ -74,6 +74,9 @@ async function onSubmit(): Promise<void> {
     }
     const result = await api.importIcs(targetId, ics)
     resultText.value = `Imported ${result.imported} of ${result.total} event${result.total === 1 ? '' : 's'}.`
+    if (result.skipped > 0) {
+      resultText.value += ` ${result.skipped} exceeded the server's import limit and were skipped.`
+    }
     emit('imported')
     // Close on a clean import; a partial failure stays open so the user can
     // read the "Imported N of M" count.

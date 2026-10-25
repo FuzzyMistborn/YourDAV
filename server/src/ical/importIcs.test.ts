@@ -1,6 +1,6 @@
 import ICAL from 'ical.js'
 import { describe, expect, it } from 'vitest'
-import { splitImportIcs } from './importIcs.js'
+import { splitImportIcs, splitImportIcsCapped } from './importIcs.js'
 
 function vcalendar(...vevents: string[]): string {
   return ['BEGIN:VCALENDAR', 'PRODID:-//test//EN', 'VERSION:2.0', ...vevents, 'END:VCALENDAR'].join('\r\n')
@@ -81,11 +81,16 @@ describe('splitImportIcs', () => {
     expect(group).toContain('TZID:America/New_York')
   })
 
-  it('caps the number of imported groups at MAX_IMPORT_EVENTS', async () => {
-    const { MAX_IMPORT_EVENTS } = await import('./importIcs.js')
-    const vevents = Array.from({ length: MAX_IMPORT_EVENTS + 5 }, (_, i) => vevent(`uid-${i}`))
-    const ics = vcalendar(...vevents)
-    const groups = splitImportIcs(ics)
-    expect(groups).toHaveLength(MAX_IMPORT_EVENTS)
+  it('caps the number of imported groups at the limit and reports the skipped count', () => {
+    const ics = vcalendar(...Array.from({ length: 8 }, (_, i) => vevent(`uid-${i}`)))
+    const { groups, skipped } = splitImportIcsCapped(ics, 5)
+    expect(groups).toHaveLength(5)
+    expect(skipped).toBe(3)
+    expect(splitImportIcs(ics, 5)).toHaveLength(5)
+  })
+
+  it('reports nothing skipped when under the limit', () => {
+    const ics = vcalendar(vevent('a'), vevent('b'))
+    expect(splitImportIcsCapped(ics, 5)).toMatchObject({ skipped: 0 })
   })
 })
