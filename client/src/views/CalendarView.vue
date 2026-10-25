@@ -897,6 +897,7 @@ onMounted(async () => {
   autoRefreshTimer = setInterval(() => {
     if (document.visibilityState === 'visible') void loadVisibleRange()
   }, AUTO_REFRESH_MS)
+  void subscriptionsStore.init()
   await calendarsStore.load()
   await loadVisibleRange()
 })

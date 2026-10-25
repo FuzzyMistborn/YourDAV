@@ -408,9 +408,15 @@ next saved.
   constant `'subscription'` etag (read-only by construction). **SSRF
   surface**: gated by `requireSession`; `safeFetchExternal` pins the
   connection to the validated IP (see "Security hardening").
-  Subscriptions are **entirely client-side state**
-  (`stores/subscriptions.ts`, localStorage); the server just proxies each
-  URL per request. Events merge into `CalendarView.vue` with
+  The subscription **list** (id/name/url/color) is stored on the DAV server
+  as a custom property `{https://yourdav.app/ns}yourdav-subscriptions` (JSON)
+  on the calendar home (`dav/userSettings.ts`; `GET`/`PUT /api/subscriptions`),
+  so it follows the account across browsers/logouts. Verified on Radicale and
+  Baikal (owner-only: another user gets 403). `stores/subscriptions.ts`
+  keeps localStorage as a mirror and as the sole store when the server
+  answers 501; an account with no stored list seeds the server from the
+  browser's. Last write wins. Enabled/disabled state is still per-session.
+  The server otherwise just proxies each URL per request. Events merge into `CalendarView.vue` with
   `editable: false`.
 
 ## Calendar sharing

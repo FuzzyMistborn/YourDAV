@@ -1,7 +1,7 @@
 import type { CalendarObject } from '@yourdav/shared'
 import { defineStore } from 'pinia'
 import { reactive, ref } from 'vue'
-import { api } from '../api.js'
+import { api, ApiRequestError } from '../api.js'
 
 export interface Subscription {
   id: string
@@ -44,8 +44,67 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
   const byRange = ref<Record<string, CalendarObject[]>>({})
   const errors = reactive<Record<string, string>>({})
 
+  // The list lives on the DAV server (see server/src/dav/userSettings.ts) so
+  // it follows the account across browsers and logouts; localStorage stays as
+  // a mirror and as the whole store on servers that can't hold the property.
+  const serverBacked = ref(true)
+  let initialized = false
+  let initDone: Promise<void> = Promise.resolve()
+  let pendingPush: Promise<void> = Promise.resolve()
+
+  function writeLocal(): void {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(subscriptions.value))
+    } catch {
+      // Storage unavailable -- the server copy (if any) still holds the list.
+    }
+  }
+
+  // Pushes are chained so a slow earlier write can't land after a later one.
+  function pushToServer(): void {
+    if (!serverBacked.value) return
+    pendingPush = pendingPush.then(async () => {
+      // Wait for init() so an edit made while the stored list is still
+      // loading can't overwrite it, and snapshot at send time.
+      await initDone
+      if (!serverBacked.value) return
+      const snapshot = subscriptions.value.map(({ id, name, url, color }) => ({ id, name, url, color }))
+      try {
+        await api.putStoredSubscriptions(snapshot)
+      } catch (err) {
+        // 501 = this DAV server can't store it: stay browser-local from now on.
+        if (err instanceof ApiRequestError && err.status === 501) serverBacked.value = false
+      }
+    })
+  }
+
   function persist(): void {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(subscriptions.value))
+    writeLocal()
+    pushToServer()
+  }
+
+  /** Loads the account's list from the DAV server; migrates the browser-local list if the server has none yet. */
+  async function init(): Promise<void> {
+    if (initialized) return initDone
+    initialized = true
+    initDone = load()
+    return initDone
+  }
+
+  async function load(): Promise<void> {
+    try {
+      const { subscriptions: stored } = await api.getStoredSubscriptions()
+      if (stored === null) {
+        // Nothing saved yet: seed the server from this browser's list.
+        if (subscriptions.value.length > 0) pushToServer()
+        return
+      }
+      subscriptions.value = stored
+      for (const sub of stored) if (!(sub.id in enabled)) enabled[sub.id] = true
+      writeLocal()
+    } catch {
+      // Server unreachable: keep working from the browser-local list.
+    }
   }
 
   function add(name: string, url: string, color = DEFAULT_COLOR): void {
@@ -98,5 +157,5 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
       .flatMap((s) => byRange.value[rangeKey(s.id, start, end)] ?? [])
   }
 
-  return { subscriptions, enabled, errors, add, remove, toggle, setColor, loadRange, eventsFor }
+  return { subscriptions, enabled, errors, serverBacked, init, add, remove, toggle, setColor, loadRange, eventsFor }
 })

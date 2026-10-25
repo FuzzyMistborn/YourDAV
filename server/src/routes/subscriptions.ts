@@ -1,5 +1,6 @@
 import type { CalendarObject } from '@yourdav/shared'
 import type { FastifyInstance } from 'fastify'
+import { readSubscriptionsProp, SettingsUnsupportedError, writeSubscriptionsProp } from '../dav/userSettings.js'
 import { fetchSubscriptionEvents } from '../ical/subscription.js'
 import { requireSession } from './requireSession.js'
 
@@ -25,7 +26,68 @@ export function clearSubscriptionCache(): void {
   inFlight.clear()
 }
 
+const MAX_SUBSCRIPTIONS = 100
+const COLOR_RE = /^#[0-9a-fA-F]{3,8}$/
+
+interface StoredSubscription {
+  id: string
+  name: string
+  url: string
+  color: string
+}
+
+/** Strict shape check -- this is stored server-side and read back by every browser of the account. */
+function validSubscriptions(value: unknown): value is StoredSubscription[] {
+  if (!Array.isArray(value) || value.length > MAX_SUBSCRIPTIONS) return false
+  return value.every((s) => {
+    if (!s || typeof s !== 'object') return false
+    const { id, name, url, color } = s as Record<string, unknown>
+    if (typeof id !== 'string' || id.length === 0 || id.length > 100) return false
+    if (typeof name !== 'string' || name.length > 200) return false
+    if (typeof url !== 'string' || url.length === 0 || url.length > 2048) return false
+    if (typeof color !== 'string' || !COLOR_RE.test(color)) return false
+    return true
+  })
+}
+
 export async function subscriptionRoutes(app: FastifyInstance): Promise<void> {
+  // The account's subscription list, stored as a property on the DAV
+  // server's calendar home (see dav/userSettings.ts). `subscriptions` is
+  // null when nothing has been saved there yet, so the client knows whether
+  // to migrate its browser-local list.
+  app.get('/', async (req, reply) => {
+    const dav = requireSession(req, reply)
+    if (!dav) return
+    try {
+      const raw = await readSubscriptionsProp(dav)
+      if (raw === null) return reply.send({ subscriptions: null })
+      const parsed: unknown = JSON.parse(raw)
+      return reply.send({ subscriptions: validSubscriptions(parsed) ? parsed : null })
+    } catch (err) {
+      req.log.warn({ err }, 'Could not read stored subscriptions')
+      return reply.send({ subscriptions: null })
+    }
+  })
+
+  app.put<{ Body: { subscriptions?: unknown } }>('/', async (req, reply) => {
+    const dav = requireSession(req, reply)
+    if (!dav) return
+    const subscriptions = req.body?.subscriptions
+    if (!validSubscriptions(subscriptions)) {
+      return reply.code(400).send({ error: 'bad_request', message: 'Invalid subscriptions list' })
+    }
+    try {
+      await writeSubscriptionsProp(dav, JSON.stringify(subscriptions))
+    } catch (err) {
+      if (err instanceof SettingsUnsupportedError) {
+        return reply.code(501).send({ error: 'not_supported', message: 'This DAV server cannot store subscriptions' })
+      }
+      req.log.warn({ err }, 'Could not store subscriptions')
+      return reply.code(502).send({ error: 'bad_gateway', message: 'Could not save subscriptions to the DAV server' })
+    }
+    return reply.code(204).send()
+  })
+
   app.get<{ Querystring: { url?: string; start?: string; end?: string } }>('/events', async (req, reply) => {
     // Fetches an arbitrary user-supplied URL server-side; safeFetchExternal
     // (server/src/dav/ssrf.ts) blocks private/loopback/link-local
