@@ -5,6 +5,7 @@ import { api, ApiRequestError } from '../api.js'
 import { clearAccountStorage } from '../lib/accountStorage.js'
 import { useContactsStore } from './contacts.js'
 import { useNotificationsStore } from './notifications.js'
+import { useSubscriptionsStore } from './subscriptions.js'
 
 export const useSessionStore = defineStore('session', () => {
   const info = ref<SessionInfo | null>(null)
@@ -40,6 +41,7 @@ export const useSessionStore = defineStore('session', () => {
     // still fire after the switch.
     useNotificationsStore().clear()
     useContactsStore().clear()
+    useSubscriptionsStore().clear()
   }
 
   return { info, checked, refresh, login, logout, ApiRequestError }

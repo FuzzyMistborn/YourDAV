@@ -1,7 +1,7 @@
 import type { CalendarObject } from '@yourdav/shared'
 import type { FastifyInstance } from 'fastify'
 import { readSubscriptionsProp, SettingsUnsupportedError, writeSubscriptionsProp } from '../dav/userSettings.js'
-import { holidayCountries, isHolidayUrl } from '../ical/holidays.js'
+import { holidayCountries, isHolidayUrl, isKnownHolidayUrl } from '../ical/holidays.js'
 import { fetchSubscriptionEvents } from '../ical/subscription.js'
 import { requireSession } from './requireSession.js'
 
@@ -59,15 +59,25 @@ export async function subscriptionRoutes(app: FastifyInstance): Promise<void> {
   app.get('/', async (req, reply) => {
     const dav = requireSession(req, reply)
     if (!dav) return
+    let raw: string | null
     try {
-      const raw = await readSubscriptionsProp(dav)
-      if (raw === null) return reply.send({ subscriptions: null })
-      const parsed: unknown = JSON.parse(raw)
-      return reply.send({ subscriptions: validSubscriptions(parsed) ? parsed : null })
+      raw = await readSubscriptionsProp(dav)
     } catch (err) {
+      // Not "nothing saved": the client must not seed over a list it couldn't read.
       req.log.warn({ err }, 'Could not read stored subscriptions')
-      return reply.send({ subscriptions: null })
+      return reply.code(502).send({ error: 'bad_gateway', message: 'Could not read subscriptions from the DAV server' })
     }
+    if (raw === null) return reply.send({ subscriptions: null })
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      parsed = undefined
+    }
+    if (validSubscriptions(parsed)) return reply.send({ subscriptions: parsed })
+    // Something is stored but unusable; flag it so the client leaves it alone.
+    req.log.warn('Stored subscriptions failed validation')
+    return reply.send({ subscriptions: null, invalid: true })
   })
 
   app.put<{ Body: { subscriptions?: unknown } }>('/', async (req, reply) => {
@@ -128,6 +138,10 @@ export async function subscriptionRoutes(app: FastifyInstance): Promise<void> {
     }
     if (!isHolidayUrl(url) && parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
       return reply.code(400).send({ error: 'bad_request', message: 'Only http(s)/webcal URLs are supported' })
+    }
+
+    if (isHolidayUrl(url) && !isKnownHolidayUrl(url)) {
+      return reply.code(400).send({ error: 'bad_request', message: 'Unknown holiday country' })
     }
 
     const now = Date.now()

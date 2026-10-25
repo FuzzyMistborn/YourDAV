@@ -73,6 +73,13 @@ describe('safeFetchExternal', () => {
     await expect(safeFetchExternal('http://[::1]/feed.ics')).rejects.toThrow(BlockedUrlError)
   })
 
+  it.each(['http://[::]/', 'http://[::ffff:7f00:1]/', 'http://[::ffff:127.0.0.1]/', 'http://[::127.0.0.1]/'])(
+    'rejects %s, which reaches loopback',
+    async (url) => {
+      await expect(safeFetchExternal(url)).rejects.toThrow(BlockedUrlError)
+    },
+  )
+
   it('rejects the cloud metadata link-local address', async () => {
     await expect(safeFetchExternal('http://169.254.169.254/latest/meta-data/')).rejects.toThrow(BlockedUrlError)
   })

@@ -18,6 +18,26 @@ type IpClass = 'public' | 'lan' | 'blocked'
  * 'lan': RFC1918 / CGNAT / IPv6 unique-local -- reachable only when
  * ALLOW_PRIVATE_SUBSCRIPTIONS is set (or the host is allowlisted).
  */
+/** Expands any valid IPv6 text form (incl. "::" and a dotted-quad tail) into eight 16-bit groups. */
+function expandIPv6(ip: string): number[] | null {
+  let text = ip.toLowerCase().split('%')[0]
+  const tail = text.match(/(\d+\.\d+\.\d+\.\d+)$/)
+  if (tail) {
+    const o = tail[1].split('.').map(Number)
+    if (o.length !== 4 || o.some((n) => n > 255)) return null
+    text = text.slice(0, -tail[1].length) + `${((o[0] << 8) | o[1]).toString(16)}:${((o[2] << 8) | o[3]).toString(16)}`
+  }
+  const halves = text.split('::')
+  if (halves.length > 2) return null
+  const parse = (s: string): number[] => (s ? s.split(':').map((g) => parseInt(g, 16)) : [])
+  const head = parse(halves[0])
+  const rest = halves.length === 2 ? parse(halves[1]) : []
+  const fill = halves.length === 2 ? 8 - head.length - rest.length : 0
+  const groups = [...head, ...Array.from({ length: Math.max(fill, 0) }, () => 0), ...rest]
+  if (groups.length !== 8 || groups.some((g) => Number.isNaN(g))) return null
+  return groups
+}
+
 function classifyIp(ip: string): IpClass {
   if (isIPv4(ip)) {
     const [a, b] = ip.split('.').map(Number)
@@ -31,11 +51,19 @@ function classifyIp(ip: string): IpClass {
     return 'public'
   }
   if (isIPv6(ip)) {
-    const lower = ip.toLowerCase()
-    if (lower === '::1') return 'blocked' // loopback
-    if (/^fe[89ab]/.test(lower)) return 'blocked' // link-local
-    if (lower.startsWith('fc') || lower.startsWith('fd')) return 'lan' // unique local
-    if (lower.startsWith('::ffff:')) return classifyIp(lower.slice('::ffff:'.length))
+    const groups = expandIPv6(ip)
+    if (!groups) return 'blocked'
+    const [g0, g1, g2, g3, g4, g5, g6, g7] = groups
+    if (groups.every((g) => g === 0)) return 'blocked' // :: unspecified
+    if (groups.slice(0, 7).every((g) => g === 0) && g7 === 1) return 'blocked' // ::1 loopback
+    // IPv4-mapped (::ffff:a.b.c.d), IPv4-compatible (::a.b.c.d) and NAT64
+    // (64:ff9b::a.b.c.d) addresses reach the embedded IPv4 address.
+    const embedsV4 =
+      (g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0 && (g5 === 0xffff || g5 === 0)) ||
+      (g0 === 0x64 && g1 === 0xff9b && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0)
+    if (embedsV4) return classifyIp(`${g6 >> 8}.${g6 & 255}.${g7 >> 8}.${g7 & 255}`)
+    if ((g0 & 0xffc0) === 0xfe80) return 'blocked' // link-local
+    if ((g0 & 0xfe00) === 0xfc00) return 'lan' // unique local
     return 'public'
   }
   return 'blocked' // unrecognized -- fail closed
