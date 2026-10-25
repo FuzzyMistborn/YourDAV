@@ -52,6 +52,9 @@ import { useClipboardStore } from '../stores/clipboard.js'
 
 const listUpcomingView = {
   type: 'list',
+  // Agenda rows swap the colored dot for a vertical accent bar to match the
+  // block events in the other views.
+  listItemEventBeforeClass: 'yc-fc-agenda-bar',
   visibleRange: () => {
     const start = new Date()
     start.setHours(0, 0, 0, 0)
@@ -814,8 +817,11 @@ const calendarOptions = computed<CalendarOptions>(() => ({
   eventClass: 'yc-fc-event',
   // Row events are the full-width bars: all-day events and timed events that
   // span several days. Single-day timed events stay as dot + text list items.
-  rowEventClass: 'yc-fc-event-row',
-  rowEventInnerClass: 'yc-fc-event-row-inner',
+  rowEventClass: 'yc-fc-event-block',
+  rowEventInnerClass: 'yc-fc-event-block-inner',
+  // Timed events in the week/day columns get the same treatment.
+  columnEventClass: 'yc-fc-event-block',
+  columnEventInnerClass: 'yc-fc-event-block-inner',
   slotHeaderInnerClass: 'yc-fc-slot-label',
   editable: true,
   selectable: true,
@@ -1379,14 +1385,14 @@ watch(enabledSubscriptionIds, (ids, oldIds) => {
   font-weight: 600;
   text-shadow: 0 1px 1px rgb(0 0 0 / 0.25);
 }
-/* Row events (all-day and multi-day): a tinted fill with a solid accent bar
-   and normal text, rather than a saturated block with white text -- much
-   easier to read, especially on light calendar colors. */
-.calendar-card .yc-fc-event-row {
+/* Block events (all-day, multi-day and week/day columns): a tinted fill with
+   a solid accent bar and normal text, rather than a saturated block with
+   white text -- much easier to read, especially on light calendar colors. */
+.calendar-card .yc-fc-event-block {
   background-color: color-mix(in srgb, var(--fc-event-color) 24%, var(--color-surface));
   text-shadow: none;
 }
-.calendar-card .yc-fc-event-row::before {
+.calendar-card .yc-fc-event-block::before {
   content: '';
   position: absolute;
   inset: 0 auto 0 0;
@@ -1395,12 +1401,18 @@ watch(enabledSubscriptionIds, (ids, oldIds) => {
   border-radius: 4px 0 0 4px;
   pointer-events: none;
 }
-.calendar-card .yc-fc-event-row-inner {
+.calendar-card .yc-fc-event-block-inner {
   padding-left: 12px;
 }
-.calendar-card .yc-fc-event-row,
-.calendar-card .yc-fc-event-row * {
+.calendar-card .yc-fc-event-block,
+.calendar-card .yc-fc-event-block * {
   color: var(--color-text);
+}
+.calendar-card .yc-fc-agenda-bar {
+  width: 5px;
+  height: 1.3em;
+  border-radius: 3px;
+  background: var(--fc-event-color);
 }
 .calendar-card .yc-fc-slot-label {
   color: var(--color-text-faint);
