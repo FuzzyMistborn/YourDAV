@@ -18,6 +18,7 @@ import {
   applyContactInput,
   editCategories,
   ensureUid,
+  MAX_PHOTO_BYTES,
   photoFromCard,
   renameCategory,
   replaceUid,
@@ -32,7 +33,6 @@ import type { RawCard } from '../store/ContactStore.js'
 import { contactStore } from '../store/contacts.js'
 import { requireSession } from './requireSession.js'
 
-const MAX_PHOTO_BYTES = 2 * 1024 * 1024
 
 function toContact(addressBookId: string, card: RawCard): Contact {
   return vcardToContact(card.vcard, addressBookId, encodeId(card.href), card.href, card.etag)

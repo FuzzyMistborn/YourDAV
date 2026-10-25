@@ -1,13 +1,27 @@
 import { config } from '../config.js'
+import { InvalidIdError } from '../store/errors.js'
 
 export class DisallowedHostError extends Error {}
 
 export function assertHostAllowed(serverUrl: string): void {
+  const url = new URL(serverUrl)
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new DisallowedHostError(`DAV URL scheme "${url.protocol}" is not allowed`)
+  }
   if (!config.allowedDavHosts) return
 
-  const host = new URL(serverUrl).hostname
-  if (!config.allowedDavHosts.includes(host)) {
-    throw new DisallowedHostError(`DAV host "${host}" is not on the allowlist`)
+  // An entry is either a bare hostname (any port/scheme on that host) or a
+  // full origin like https://host:8443, which pins scheme and port too.
+  const allowed = config.allowedDavHosts.some((entry) => {
+    if (!entry.includes('://')) return entry === url.hostname
+    try {
+      return new URL(entry).origin === url.origin
+    } catch {
+      return false
+    }
+  })
+  if (!allowed) {
+    throw new DisallowedHostError(`DAV host "${url.host}" is not on the allowlist`)
   }
 }
 
@@ -20,7 +34,12 @@ export function assertHostAllowed(serverUrl: string): void {
  */
 export function assertHrefSameHost(baseUrl: string, href: string): void {
   const base = new URL(baseUrl)
-  const target = new URL(href, baseUrl)
+  let target: URL
+  try {
+    target = new URL(href, baseUrl)
+  } catch {
+    throw new InvalidIdError(`Malformed href "${href}"`)
+  }
   // Origin, not just hostname: a same-host URL on a different port or
   // protocol (e.g. http:// instead of https://, or an internal port
   // exposed on the same box) would otherwise pass this check and still

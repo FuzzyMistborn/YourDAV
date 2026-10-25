@@ -142,6 +142,9 @@ function confirmRemove(): void {
         <button type="button" class="icon-add-btn" title="Add subscription" @click="toggleAdd">+</button>
       </span>
     </div>
+    <p v-if="store.syncError" class="subscription-list__sync-error" role="alert">
+      Changes are saved in this browser only: {{ store.syncError }}
+    </p>
 
     <form v-if="addingHolidays" class="subscription-list__form" @submit.prevent="submitHolidays">
       <select v-model="selectedCountry" required aria-label="Country">
@@ -381,6 +384,11 @@ ul {
   font-weight: 700;
   font-size: 0.78rem;
   cursor: help;
+}
+.subscription-list__sync-error {
+  margin: 0.2rem 0.5rem;
+  color: var(--color-danger);
+  font-size: 0.78rem;
 }
 .subscription-list__empty {
   padding: 0.4rem 0.5rem;

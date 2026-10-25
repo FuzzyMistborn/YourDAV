@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto'
 import type { DavContext } from './context.js'
+import { assertHostAllowed, assertHrefSameHost } from './hostAllowlist.js'
 import { withTimeout } from './timeout.js'
 
 export type AuthMethod = 'Basic' | 'Digest'
@@ -142,7 +143,14 @@ export async function detectAuthMethod(baseUrl: string): Promise<AuthMethod> {
       const wk = await probe(new URL(`/.well-known/${service}`, baseUrl).href)
       if (wk.status === 401) return fromChallenge(wk.wa)
       if (wk.status >= 300 && wk.status < 400 && wk.location) {
-        candidates.push(new URL(wk.location, baseUrl).href)
+        const redirect = new URL(wk.location, baseUrl)
+        // A redirect off the allowlist would let an allowed host steer this probe elsewhere.
+        try {
+          assertHostAllowed(redirect.href)
+          candidates.push(redirect.href)
+        } catch {
+          // skip it; the baseUrl candidate is still probed
+        }
         break
       }
     } catch {
@@ -241,6 +249,10 @@ export async function davFetch(
   input: string | URL | Request,
   requestInit?: RequestInit,
 ): Promise<Response> {
+  // Every credentialed request must stay on the authenticated origin: tsdav
+  // follows principal/home URLs the server returns, and a hostile server could
+  // point them elsewhere to harvest the Basic header or Digest response.
+  assertHrefSameHost(ctx.baseUrl, targetUrl(input))
   const init = withTimeout(requestInit)
   if (ctx.authMethod !== 'Digest') {
     return rejectIfUnauthorized(await fetch(input, withAuthHeader(init, basicAuthHeader(ctx).Authorization)))

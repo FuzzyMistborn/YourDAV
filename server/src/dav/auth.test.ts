@@ -7,6 +7,7 @@ import {
   detectAuthMethod,
   parseDigestChallenge,
 } from './auth.js'
+import { config } from '../config.js'
 import type { DavContext } from './context.js'
 
 beforeEach(() => {
@@ -320,5 +321,37 @@ describe('davFetch', () => {
 
     const res = await davFetch(ctx, 'https://b3.example.com/dav/', { method: 'PROPFIND' })
     expect(res.status).toBe(403)
+  })
+})
+
+describe('davFetch origin pinning', () => {
+  it.each(['https://evil.example/dav/', 'http://dav.example/dav/', 'https://dav.example:8443/dav/'])(
+    'refuses to send credentials to %s',
+    async (target) => {
+      const ctx: DavContext = { baseUrl: 'https://dav.example/', username: 'a', password: 'b', authMethod: 'Basic' }
+      await expect(davFetch(ctx, target)).rejects.toThrow(/does not belong/)
+      expect(fetch).not.toHaveBeenCalled()
+    },
+  )
+})
+
+describe('detectAuthMethod redirect allowlisting', () => {
+  it('does not probe a .well-known redirect to a host off the allowlist', async () => {
+    const original = config.allowedDavHosts
+    config.allowedDavHosts = ['dav.example']
+    try {
+      vi.mocked(fetch).mockImplementation(async (input) => {
+        const url = input instanceof Request ? input.url : String(input)
+        if (url.endsWith('/.well-known/caldav')) {
+          return new Response('', { status: 302, headers: { location: 'https://internal.example/x/' } })
+        }
+        return new Response('', { status: 207 })
+      })
+      await detectAuthMethod('https://dav.example/')
+      const urls = vi.mocked(fetch).mock.calls.map(([i]) => (i instanceof Request ? i.url : String(i as string | URL)))
+      expect(urls.some((u) => u.startsWith('https://internal.example'))).toBe(false)
+    } finally {
+      config.allowedDavHosts = original
+    }
   })
 })

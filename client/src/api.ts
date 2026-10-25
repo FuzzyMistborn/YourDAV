@@ -166,7 +166,7 @@ export const api = {
     return `/api/calendars/${calendarId}/export${qs ? `?${qs}` : ''}`
   },
   getStoredSubscriptions: () =>
-    request<{ subscriptions: StoredSubscription[] | null }>('/subscriptions'),
+    request<{ subscriptions: StoredSubscription[] | null; invalid?: boolean }>('/subscriptions'),
   putStoredSubscriptions: (subscriptions: StoredSubscription[]) =>
     request<void>('/subscriptions', { method: 'PUT', body: JSON.stringify({ subscriptions }) }),
   getHolidayCountries: () => request<{ code: string; name: string }[]>('/subscriptions/holiday-countries'),
