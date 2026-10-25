@@ -811,8 +811,11 @@ const calendarOptions = computed<CalendarOptions>(() => ({
   buttonClass: (b) => ['yc-fc-button', b.isSelected && 'yc-fc-button-active'].filter(Boolean).join(' '),
   dayHeaderInnerClass: 'yc-fc-day-header',
   dayCellTopInnerClass: (d) => (d.isToday ? 'yc-fc-day-number yc-fc-today' : 'yc-fc-day-number'),
-  eventClass: (e) => (e.event.allDay ? 'yc-fc-event yc-fc-event-allday' : 'yc-fc-event'),
-  rowEventInnerClass: (e) => (e.event.allDay ? 'yc-fc-event-allday-inner' : ''),
+  eventClass: 'yc-fc-event',
+  // Row events are the full-width bars: all-day events and timed events that
+  // span several days. Single-day timed events stay as dot + text list items.
+  rowEventClass: 'yc-fc-event-row',
+  rowEventInnerClass: 'yc-fc-event-row-inner',
   slotHeaderInnerClass: 'yc-fc-slot-label',
   editable: true,
   selectable: true,
@@ -1376,14 +1379,14 @@ watch(enabledSubscriptionIds, (ids, oldIds) => {
   font-weight: 600;
   text-shadow: 0 1px 1px rgb(0 0 0 / 0.25);
 }
-/* All-day events: a tinted fill with a solid accent bar and normal text,
-   rather than a saturated block with white text -- much easier to read,
-   especially on light calendar colors. */
-.calendar-card .yc-fc-event-allday {
+/* Row events (all-day and multi-day): a tinted fill with a solid accent bar
+   and normal text, rather than a saturated block with white text -- much
+   easier to read, especially on light calendar colors. */
+.calendar-card .yc-fc-event-row {
   background-color: color-mix(in srgb, var(--fc-event-color) 24%, var(--color-surface));
   text-shadow: none;
 }
-.calendar-card .yc-fc-event-allday::before {
+.calendar-card .yc-fc-event-row::before {
   content: '';
   position: absolute;
   inset: 0 auto 0 0;
@@ -1392,11 +1395,11 @@ watch(enabledSubscriptionIds, (ids, oldIds) => {
   border-radius: 4px 0 0 4px;
   pointer-events: none;
 }
-.calendar-card .yc-fc-event-allday-inner {
+.calendar-card .yc-fc-event-row-inner {
   padding-left: 12px;
 }
-.calendar-card .yc-fc-event-allday,
-.calendar-card .yc-fc-event-allday * {
+.calendar-card .yc-fc-event-row,
+.calendar-card .yc-fc-event-row * {
   color: var(--color-text);
 }
 .calendar-card .yc-fc-slot-label {
