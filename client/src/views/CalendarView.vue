@@ -1383,14 +1383,12 @@ watch(enabledSubscriptionIds, (ids, oldIds) => {
   border-radius: 5px;
   font-size: 0.82rem;
   font-weight: 600;
-  text-shadow: 0 1px 1px rgb(0 0 0 / 0.25);
 }
 /* Block events (all-day, multi-day and week/day columns): a tinted fill with
    a solid accent bar and normal text, rather than a saturated block with
    white text -- much easier to read, especially on light calendar colors. */
 .calendar-card .yc-fc-event-block {
   background-color: color-mix(in srgb, var(--fc-event-color) 24%, var(--color-surface));
-  text-shadow: none;
 }
 .calendar-card .yc-fc-event-block::before {
   content: '';
