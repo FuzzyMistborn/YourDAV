@@ -78,6 +78,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
+export interface StoredSubscription {
+  id: string
+  name: string
+  url: string
+  color: string
+}
+
 export const api = {
   login: (body: LoginRequest) => request<SessionInfo>('/session', { method: 'POST', body: JSON.stringify(body) }),
   loginConfig: () => request<LoginConfig>('/session/config'),
@@ -158,6 +165,10 @@ export const api = {
     const qs = params.toString()
     return `/api/calendars/${calendarId}/export${qs ? `?${qs}` : ''}`
   },
+  getStoredSubscriptions: () =>
+    request<{ subscriptions: StoredSubscription[] | null }>('/subscriptions'),
+  putStoredSubscriptions: (subscriptions: StoredSubscription[]) =>
+    request<void>('/subscriptions', { method: 'PUT', body: JSON.stringify({ subscriptions }) }),
   getSubscriptionEvents: (url: string, start: string, end: string) =>
     request<CalendarObject[]>(
       `/subscriptions/events?url=${encodeURIComponent(url)}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,

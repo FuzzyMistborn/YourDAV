@@ -10,6 +10,15 @@ vi.mock('../ical/subscription.js', () => ({
   fetchSubscriptionEvents: (...args: unknown[]) => fetchSubscriptionEvents(...args),
 }))
 
+const readSubscriptionsProp = vi.fn()
+const writeSubscriptionsProp = vi.fn()
+class SettingsUnsupportedError extends Error {}
+vi.mock('../dav/userSettings.js', () => ({
+  readSubscriptionsProp: (...args: unknown[]) => readSubscriptionsProp(...args),
+  writeSubscriptionsProp: (...args: unknown[]) => writeSubscriptionsProp(...args),
+  SettingsUnsupportedError,
+}))
+
 const { subscriptionRoutes, clearSubscriptionCache } = await import('./subscriptions.js')
 
 const dav: DavContext = { baseUrl: 'https://caldav.example.com/dav/', username: 'alice', password: 'secret' }
@@ -136,5 +145,57 @@ describe('GET /api/subscriptions/events', () => {
     await new Promise((r) => setTimeout(r, 50))
     const res = await app.inject({ method: 'GET', url: `/api/subscriptions/events?url=https%3A%2F%2Fexample.com%2Fx.ics&${base}` })
     expect(res.statusCode).toBe(429)
+  })
+})
+
+describe('stored subscription list (GET/PUT /api/subscriptions)', () => {
+  const sub = { id: 'a', name: 'Sonarr', url: 'https://example.com/feed.ics', color: '#8e5fd4' }
+
+  it('401s when unauthenticated', async () => {
+    const app = await buildApp({ authenticated: false })
+    expect((await app.inject({ method: 'GET', url: '/api/subscriptions' })).statusCode).toBe(401)
+    expect((await app.inject({ method: 'PUT', url: '/api/subscriptions', payload: { subscriptions: [] } })).statusCode).toBe(401)
+  })
+
+  it('returns the stored list', async () => {
+    readSubscriptionsProp.mockResolvedValue(JSON.stringify([sub]))
+    const res = await (await buildApp()).inject({ method: 'GET', url: '/api/subscriptions' })
+    expect(res.json()).toEqual({ subscriptions: [sub] })
+  })
+
+  it('returns null when nothing is stored, unparseable, or malformed', async () => {
+    const app = await buildApp()
+    for (const raw of [null, 'not json', JSON.stringify([{ id: 1 }])]) {
+      readSubscriptionsProp.mockResolvedValue(raw)
+      expect((await app.inject({ method: 'GET', url: '/api/subscriptions' })).json()).toEqual({ subscriptions: null })
+    }
+  })
+
+  it('stores a valid list', async () => {
+    writeSubscriptionsProp.mockResolvedValue(undefined)
+    const res = await (await buildApp()).inject({ method: 'PUT', url: '/api/subscriptions', payload: { subscriptions: [sub] } })
+    expect(res.statusCode).toBe(204)
+    expect(writeSubscriptionsProp).toHaveBeenCalledWith(dav, JSON.stringify([sub]))
+  })
+
+  it('400s on malformed entries and over-long lists', async () => {
+    const app = await buildApp()
+    for (const subscriptions of [
+      [{ ...sub, color: 'red' }],
+      [{ ...sub, url: '' }],
+      [{ ...sub, name: 5 }],
+      'nope',
+      Array.from({ length: 101 }, (_, i) => ({ ...sub, id: String(i) })),
+    ]) {
+      const res = await app.inject({ method: 'PUT', url: '/api/subscriptions', payload: { subscriptions } })
+      expect(res.statusCode).toBe(400)
+    }
+    expect(writeSubscriptionsProp).not.toHaveBeenCalled()
+  })
+
+  it('501s when the DAV server cannot store the property', async () => {
+    writeSubscriptionsProp.mockRejectedValue(new SettingsUnsupportedError('no'))
+    const res = await (await buildApp()).inject({ method: 'PUT', url: '/api/subscriptions', payload: { subscriptions: [sub] } })
+    expect(res.statusCode).toBe(501)
   })
 })
