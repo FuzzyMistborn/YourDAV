@@ -91,11 +91,11 @@ function onResetColorClick(id: string): void {
       @input="onColorInput(cal.id, $event)"
     />
 
-    <!-- Overflow menu rather than inline buttons (unlike SubscriptionList/
-         PendingSharesList/ShareCalendarDialog's share rows, which show
-         their 1-2 actions inline) -- this item alone has up to 5 actions
-         (rename/share/export/reset color/delete-or-unsubscribe), too many
-         to fit inline without crowding the row. -->
+    <!-- Overflow menu rather than inline buttons (unlike PendingSharesList/
+         ShareCalendarDialog's share rows, which show their 1-2 actions
+         inline) -- this item has up to 5 actions (rename/share/export/
+         reset color/delete-or-unsubscribe), too many to fit inline.
+         SubscriptionList uses the same menu for consistency. -->
     <div class="calendar-list__menu-wrap">
       <button type="button" class="calendar-list__menu-btn" title="More options" @click="toggleMenu">⋯</button>
       <ul v-if="menuOpen" class="calendar-list__menu">
@@ -205,7 +205,7 @@ input[type='checkbox'] {
   margin: 0;
   padding: 0.3rem;
   list-style: none;
-  min-width: 9.5rem;
+  min-width: 11rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -215,11 +215,11 @@ input[type='checkbox'] {
 .calendar-list__menu button {
   display: block;
   width: 100%;
-  padding: 0.35rem 0.5rem;
+  padding: 0.45rem 0.65rem;
   border: none;
   background: none;
   color: var(--color-text);
-  font-size: 0.82rem;
+  font-size: 0.95rem;
   text-align: left;
   border-radius: 4px;
   cursor: pointer;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api.js'
 import { useSubscriptionsStore } from '../stores/subscriptions.js'
 import ConfirmDialog from './ConfirmDialog.vue'
@@ -88,9 +88,26 @@ function submitEdit(): void {
   editingId.value = null
 }
 
+// Overflow menu, matching CalendarListItem; only one is open at a time.
+const menuOpenId = ref<string | null>(null)
+function toggleMenu(id: string): void {
+  menuOpenId.value = menuOpenId.value === id ? null : id
+}
+function onDocumentMouseDown(event: MouseEvent): void {
+  if (!(event.target as HTMLElement)?.closest?.('.subscription-list__menu-wrap')) menuOpenId.value = null
+}
+onMounted(() => document.addEventListener('mousedown', onDocumentMouseDown))
+onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentMouseDown))
+
 const confirmingRemove = ref<{ id: string; name: string } | null>(null)
 
+function onEditClick(sub: { id: string; name: string; url: string }): void {
+  menuOpenId.value = null
+  startEdit(sub)
+}
+
 function onRemoveClick(id: string, name: string): void {
+  menuOpenId.value = null
   confirmingRemove.value = { id, name }
 }
 
@@ -161,10 +178,17 @@ function confirmRemove(): void {
           :title="`Color for ${sub.name}`"
           @input="onColorInput(sub.id, $event)"
         />
-        <button type="button" class="icon-edit-btn" title="Edit" @click="startEdit(sub)">✎</button>
-        <button type="button" class="icon-remove-btn" title="Remove" @click="onRemoveClick(sub.id, sub.name)">
-          ×
-        </button>
+        <div class="subscription-list__menu-wrap">
+          <button type="button" class="subscription-list__menu-btn" title="More options" @click="toggleMenu(sub.id)">⋯</button>
+          <ul v-if="menuOpenId === sub.id" class="subscription-list__menu">
+            <li>
+              <button type="button" @click="onEditClick(sub)">✎ Edit</button>
+            </li>
+            <li>
+              <button type="button" class="subscription-list__menu-danger" @click="onRemoveClick(sub.id, sub.name)">✕ Remove</button>
+            </li>
+          </ul>
+        </div>
         </template>
       </li>
       <li v-if="store.subscriptions.length === 0" class="subscription-list__empty">No subscriptions yet.</li>
@@ -255,19 +279,63 @@ ul {
   padding: 0.2rem 0.5rem;
   border-radius: var(--radius-sm);
 }
-.icon-edit-btn {
+.subscription-list__menu-wrap {
+  position: relative;
   flex-shrink: 0;
-  padding: 0 0.3rem;
+}
+.subscription-list__menu-btn {
+  padding: 0.1rem 0.35rem;
   border: none;
   background: none;
-  border-radius: var(--radius-sm);
   color: var(--color-text-faint);
-  font-size: 0.85rem;
+  font-size: 1rem;
   line-height: 1;
   cursor: pointer;
+  border-radius: var(--radius-sm);
 }
-.icon-edit-btn:hover {
+.subscription-list__menu-btn:hover {
   color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+.subscription-list__menu {
+  position: absolute;
+  top: calc(100% + 2px);
+  right: 0;
+  z-index: 25;
+  margin: 0;
+  padding: 0.3rem;
+  list-style: none;
+  min-width: 11rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  animation: pop-in 0.1s ease;
+}
+.subscription-list__menu button {
+  display: block;
+  width: 100%;
+  padding: 0.45rem 0.65rem;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  font-size: 0.95rem;
+  text-align: left;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.subscription-list__menu button:hover {
+  background: var(--color-surface-hover);
+}
+.subscription-list__menu .subscription-list__menu-danger {
+  color: var(--color-danger);
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
 }
 .subscription-list__item:hover {
   background: var(--color-surface-hover);
