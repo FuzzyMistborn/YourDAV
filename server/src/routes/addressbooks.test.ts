@@ -17,7 +17,7 @@ const storeMock: Record<string, ReturnType<typeof vi.fn>> = {
 }
 vi.mock('../store/contacts.js', () => ({ contactStore: storeMock }))
 
-const { addressBookRoutes } = await import('./addressbooks.js')
+const { addressBookRoutes, mapConcurrent } = await import('./addressbooks.js')
 const { ContactNotFoundError } = await import('../store/errors.js')
 
 const dav: DavContext = { baseUrl: 'https://dav.example.com/dav/', username: 'alice', password: 'secret' }
@@ -300,5 +300,98 @@ describe('POST /api/addressbooks/:id/groups/members', () => {
     app = await buildApp()
     const res = await post({ items, add: 'g' })
     expect(res.json()).toEqual({ updated: 1, unchanged: 0, failed: 1 })
+  })
+})
+
+describe('mapConcurrent', () => {
+  it('returns empty array when items are empty', async () => {
+    const res = await mapConcurrent([], 5, async (x) => x)
+    expect(res).toEqual([])
+  })
+
+  it('respects concurrency limit and preserves result order', async () => {
+    let inFlight = 0
+    let maxInFlight = 0
+    const items = [10, 20, 30, 40, 50]
+    const res = await mapConcurrent(items, 2, async (val, idx) => {
+      inFlight++
+      maxInFlight = Math.max(maxInFlight, inFlight)
+      await new Promise((r) => setTimeout(r, 10))
+      inFlight--
+      return `${idx}:${val}`
+    })
+    expect(maxInFlight).toBe(2)
+    expect(res).toEqual(['0:10', '1:20', '2:30', '3:40', '4:50'])
+  })
+})
+
+describe('POST /api/addressbooks/:id/groups/rename', () => {
+  const post = (payload: unknown) =>
+    app.inject({ method: 'POST', url: '/api/addressbooks/a/groups/rename', payload: payload as object })
+
+  beforeEach(() => {
+    storeMock.discoverAddressBooks.mockResolvedValue([book('a')])
+    storeMock.updateCard.mockResolvedValue({ href: '', etag: '"x"', vcard: '' })
+  })
+
+  it('401s when unauthenticated', async () => {
+    app = await buildApp({ authenticated: false })
+    expect((await post({ from: 'old', to: 'new' })).statusCode).toBe(401)
+  })
+
+  it.each([
+    ['missing from', { to: 'new' }],
+    ['empty from', { from: '  ', to: 'new' }],
+    ['missing to', { from: 'old' }],
+    ['empty to', { from: 'old', to: '  ' }],
+  ])('400s for %s', async (_label, payload) => {
+    app = await buildApp()
+    expect((await post(payload)).statusCode).toBe(400)
+    expect(storeMock.updateCard).not.toHaveBeenCalled()
+  })
+
+  it('403s for a read-only address book', async () => {
+    storeMock.discoverAddressBooks.mockResolvedValue([book('a', { readOnly: true })])
+    app = await buildApp()
+    expect((await post({ from: 'old', to: 'new' })).statusCode).toBe(403)
+  })
+
+  it('renames matching cards and skips cards without that category', async () => {
+    storeMock.getCards.mockResolvedValue([
+      { href: 'https://dav.example.com/a/1.vcf', etag: '"1"', vcard: CARD('u1', 'CATEGORIES:old,work') },
+      { href: 'https://dav.example.com/a/2.vcf', etag: '"2"', vcard: CARD('u2', 'CATEGORIES:other') },
+      { href: 'https://dav.example.com/a/3.vcf', etag: '"3"', vcard: CARD('u3', 'CATEGORIES:old') },
+    ])
+    app = await buildApp()
+    const res = await post({ from: 'old', to: 'fresh' })
+    expect(res.json()).toEqual({ updated: 2, failed: 0 })
+    expect(storeMock.updateCard).toHaveBeenCalledTimes(2)
+    expect(storeMock.updateCard).toHaveBeenCalledWith(
+      dav,
+      'a',
+      'https://dav.example.com/a/1.vcf',
+      '"1"',
+      CARD('u1', 'CATEGORIES:fresh,work'),
+    )
+    expect(storeMock.updateCard).toHaveBeenCalledWith(
+      dav,
+      'a',
+      'https://dav.example.com/a/3.vcf',
+      '"3"',
+      CARD('u3', 'CATEGORIES:fresh'),
+    )
+  })
+
+  it('counts failed card updates without aborting the rest', async () => {
+    storeMock.getCards.mockResolvedValue([
+      { href: 'https://dav.example.com/a/1.vcf', etag: '"1"', vcard: CARD('u1', 'CATEGORIES:old') },
+      { href: 'https://dav.example.com/a/2.vcf', etag: '"2"', vcard: CARD('u2', 'CATEGORIES:old') },
+    ])
+    storeMock.updateCard
+      .mockRejectedValueOnce(new Error('CardDAV update failed'))
+      .mockResolvedValueOnce({ href: '', etag: '"2"', vcard: '' })
+    app = await buildApp()
+    const res = await post({ from: 'old', to: 'fresh' })
+    expect(res.json()).toEqual({ updated: 1, failed: 1 })
   })
 })

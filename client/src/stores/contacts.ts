@@ -389,8 +389,8 @@ export const useContactsStore = defineStore('contacts', () => {
     const bookIds = new Set(
       contacts.value.filter((c) => c.categories.includes(from) && !isReadOnly(c)).map((c) => c.addressBookId),
     )
-    let failed = 0
-    for (const id of bookIds) failed += (await api.renameGroup(id, from, to)).failed
+    const results = await Promise.all([...bookIds].map((id) => api.renameGroup(id, from, to)))
+    const failed = results.reduce((sum, r) => sum + r.failed, 0)
     const wasSelected = selectedGroup.value === from
     await Promise.all([...bookIds].map((id) => loadContacts(id, true)))
     if (wasSelected) selectedGroup.value = to

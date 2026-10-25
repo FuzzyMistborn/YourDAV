@@ -44,6 +44,7 @@ const newBookInput = ref<HTMLInputElement | null>(null)
 const bookError = ref<string | null>(null)
 const renamingGroup = ref<string | null>(null)
 const renameValue = ref('')
+const savingGroup = ref<{ from: string; to: string } | null>(null)
 const importInput = ref<HTMLInputElement | null>(null)
 const importMessage = ref<string | null>(null)
 
@@ -606,26 +607,50 @@ function setRenameInput(el: unknown): void {
 }
 
 function startRename(name: string): void {
+  if (savingGroup.value) return
   renamingGroup.value = name
   renameValue.value = name
-  // Focus explicitly: `autofocus` is unreliable on elements added after load,
-  // and the blur handler that cancels the edit needs the input to have focus.
+  // Focus explicitly: `autofocus` is unreliable on elements added after load.
   void nextTick(() => {
     renameInputEl?.focus()
     renameInputEl?.select()
   })
 }
 
+function cancelRename(): void {
+  renamingGroup.value = null
+  renameValue.value = ''
+}
+
+function onRenameBlur(): void {
+  // If the user cancelled via Escape, renamingGroup is already null.
+  if (renamingGroup.value !== null) {
+    void submitRename()
+  }
+}
+
+let isRenaming = false
 async function submitRename(): Promise<void> {
+  if (isRenaming) return
   const from = renamingGroup.value
   const to = renameValue.value.trim()
+  if (!from) return
   renamingGroup.value = null
-  if (!from || !to || to === from) return
+  renameValue.value = ''
+  if (!to || to === from) return
+
+  isRenaming = true
+  savingGroup.value = { from, to }
   try {
     const failed = await contactsStore.renameGroup(from, to)
     if (failed > 0) bookError.value = `${failed} contact${failed === 1 ? '' : 's'} could not be updated`
   } catch (err) {
     bookError.value = err instanceof ApiRequestError ? err.message : 'Could not rename the group'
+  } finally {
+    isRenaming = false
+    if (savingGroup.value?.from === from) {
+      savingGroup.value = null
+    }
   }
 }
 
@@ -814,7 +839,12 @@ const contactCountLabel = computed(() => {
             v-for="g in contactsStore.groups"
             :key="g.name"
             class="address-books__item"
-            :class="{ 'address-books__item--active': contactsStore.selectedGroup === g.name }"
+            :class="{
+              'address-books__item--active':
+                contactsStore.selectedGroup === g.name ||
+                (savingGroup?.from === g.name && contactsStore.selectedGroup === savingGroup.to),
+              'address-books__item--saving': savingGroup?.from === g.name,
+            }"
             @click="contactsStore.selectedGroup = g.name"
           >
             <form
@@ -822,7 +852,7 @@ const contactCountLabel = computed(() => {
               class="address-books__rename"
               @click.stop
               @submit.prevent="submitRename"
-              @keydown.esc="renamingGroup = null"
+              @keydown.esc="cancelRename"
             >
               <input
                 :ref="setRenameInput"
@@ -830,25 +860,37 @@ const contactCountLabel = computed(() => {
                 type="text"
                 class="address-books__new-input"
                 aria-label="Group name"
-                @blur="renamingGroup = null"
+                @blur="onRenameBlur"
               />
             </form>
             <template v-else>
-              <span class="address-books__name" :title="g.name">{{ g.name }}</span>
+              <span class="address-books__name" :title="savingGroup?.from === g.name ? savingGroup.to : g.name">
+                {{ savingGroup?.from === g.name ? savingGroup.to : g.name }}
+              </span>
               <!-- The count and the rename button share one right-aligned slot:
-                   the count shows at rest, the button replaces it on hover/focus. -->
+                   the count shows at rest, the button replaces it on hover/focus.
+                   While saving, a spinner replaces both. -->
               <span class="address-books__trail">
-                <span class="address-books__count">{{ g.count }}</span>
-                <button
-                  v-if="!activeReadOnly"
-                  type="button"
-                  class="address-books__edit"
-                  title="Rename group"
-                  aria-label="Rename group"
-                  @click.stop="startRename(g.name)"
-                >
-                  ✎
-                </button>
+                <span
+                  v-if="savingGroup?.from === g.name"
+                  class="address-books__spinner"
+                  role="status"
+                  aria-label="Saving group name…"
+                  title="Saving…"
+                ></span>
+                <template v-else>
+                  <span class="address-books__count">{{ g.count }}</span>
+                  <button
+                    v-if="!activeReadOnly"
+                    type="button"
+                    class="address-books__edit"
+                    title="Rename group"
+                    aria-label="Rename group"
+                    @click.stop="startRename(g.name)"
+                  >
+                    ✎
+                  </button>
+                </template>
               </span>
             </template>
           </li>
@@ -2195,6 +2237,27 @@ const contactCountLabel = computed(() => {
 
 .address-books__rename {
   flex: 1;
+}
+
+.address-books__item--saving {
+  pointer-events: none;
+}
+
+.address-books__spinner {
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 1.5px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: address-books-spin 0.6s linear infinite;
+  display: inline-block;
+  pointer-events: none;
+}
+
+@keyframes address-books-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .photo-row {

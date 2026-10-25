@@ -33,6 +33,26 @@ import { requireSession } from './requireSession.js'
 
 const MAX_PHOTO_BYTES = 2 * 1024 * 1024
 
+/** Runs `fn` over `items` with at most `limit` asynchronous invocations in flight concurrently. */
+export async function mapConcurrent<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = []
+  let nextIdx = 0
+  const workerCount = Math.min(limit, items.length)
+  if (workerCount === 0) return results
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIdx < items.length) {
+      const idx = nextIdx++
+      results[idx] = await fn(items[idx], idx)
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
 function toContact(addressBookId: string, card: RawCard): Contact {
   return vcardToContact(card.vcard, addressBookId, encodeId(card.href), card.href, card.etag)
 }
@@ -232,15 +252,17 @@ export async function addressBookRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Params: { id: string }; Body: RenameGroupInput }>('/:id/groups/rename', async (req, reply) => {
     const dav = requireSession(req, reply)
     if (!dav) return
-    const from = typeof req.body?.from === 'string' ? req.body.from : ''
+    const from = typeof req.body?.from === 'string' ? req.body.from.trim() : ''
     const to = typeof req.body?.to === 'string' ? req.body.to.trim() : ''
     if (!from || !to) return reply.code(400).send({ error: 'bad_request', message: 'from and to are required' })
     if (!(await writable(dav, req.params.id, reply))) return
 
+    const cards = (await contactStore.getCards(dav, req.params.id))
+      .map((card) => ({ card, next: renameCategory(card.vcard, from, to) }))
+      .filter((c): c is { card: RawCard; next: string } => c.next !== null)
+
     const result: RenameGroupResult = { updated: 0, failed: 0 }
-    for (const card of await contactStore.getCards(dav, req.params.id)) {
-      const next = renameCategory(card.vcard, from, to)
-      if (next === null) continue
+    await mapConcurrent(cards, 6, async ({ card, next }) => {
       try {
         await contactStore.updateCard(dav, req.params.id, card.href, card.etag, next)
         result.updated++
@@ -248,7 +270,7 @@ export async function addressBookRoutes(app: FastifyInstance): Promise<void> {
         req.log.warn({ err: e }, 'group rename failed for a card')
         result.failed++
       }
-    }
+    })
     return reply.send(result)
   })
 
@@ -316,13 +338,13 @@ export async function addressBookRoutes(app: FastifyInstance): Promise<void> {
     if (!(await writable(dav, req.params.id, reply))) return
 
     const result: GroupMembersResult = { updated: 0, unchanged: 0, failed: 0 }
-    for (const item of items) {
+    await mapConcurrent(items, 6, async (item) => {
       try {
         const card = await contactStore.getCard(dav, req.params.id, item.href)
         const next = editCategories(card.vcard, add ? { add } : { remove })
         if (next === null) {
           result.unchanged++
-          continue
+          return
         }
         await contactStore.updateCard(dav, req.params.id, card.href, card.etag, next)
         result.updated++
@@ -330,7 +352,7 @@ export async function addressBookRoutes(app: FastifyInstance): Promise<void> {
         req.log.warn({ err: e }, 'group membership change failed for a card')
         result.failed++
       }
-    }
+    })
     return reply.send(result)
   })
 }
