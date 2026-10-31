@@ -53,6 +53,10 @@ services:
       # to a non-"production" value here if you understand the tradeoff
       # (session cookie sent over plain HTTP).
       # NODE_ENV: development
+      # Development only: set to true to skip TLS certificate verification
+      # for the DAV server (self-signed / internal-CA certs). Logs a warning
+      # at startup. Prefer NODE_EXTRA_CA_CERTS with your CA for anything real.
+      # DAV_INSECURE_TLS: "true"
     volumes:
       # Only load-bearing when CACHE_ENABLED=true -- otherwise DavCalendarStore
       # is used directly with no local state to persist (see AGENTS.md's

@@ -45,6 +45,13 @@ async function main(): Promise<void> {
     trustProxy: config.trustProxy,
   })
 
+  if (config.davInsecureTls) {
+    app.log.warn(
+      'DAV_INSECURE_TLS=true: TLS certificates for the DAV server are NOT being verified. ' +
+        'Credentials can be intercepted by anyone on the network path. Never use this in production.',
+    )
+  }
+
   // A calendarId/href resolving to a different host than the authenticated
   // DAV server is a rejected SSRF attempt, not a server bug -- surface it
   // as 403, not the default 500 an uncaught throw would otherwise produce.
