@@ -137,6 +137,21 @@ Reusable fixtures — two fully-accepted map shares from `testuser` to
 `Permissions: "rw"`. If sharing/rights behavior looks wrong, check
 `.dev-radicale/config/rights` and `[sharing]` first.
 
+### Self-signed TLS (`DAV_INSECURE_TLS`)
+
+`DAV_INSECURE_TLS=true` skips TLS certificate verification for requests to the
+DAV server only (`server/src/dav/tls.ts`, an undici `Agent` with
+`rejectUnauthorized: false`, used by every fetch in `dav/auth.ts`).
+Subscription feeds (`dav/ssrf.ts`) are unaffected. It logs a startup warning;
+it's a development aid, not for production. Verified (2026-10) against
+Radicale over TLS: login 401s without the flag and 201s with it. To repeat:
+copy `.dev-radicale/config/config` to a scratch file, add `ssl = True`,
+`certificate = <pem>` and `key = <pem>` under `[server]` (note: `key`, not
+`certificate_key`) on another port, generate a cert with
+`openssl req -x509 -newkey rsa:2048 -nodes ...`, and log in with
+`serverUrl` `https://127.0.0.1:<port>`. `SESSION_SECRET` must be 64 hex chars.
+Not covered by an automated test (needs a live TLS server).
+
 ### Baikal (0.13.0)
 
 Needs PHP with `mbstring`, `xml`/`dom`/`simplexml`, `pdo_sqlite` (PHP 8.3 here

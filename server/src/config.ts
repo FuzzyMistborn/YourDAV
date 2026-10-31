@@ -69,6 +69,10 @@ export const config = {
     .split(',')
     .map((h) => h.trim().toLowerCase())
     .filter(Boolean),
+  // Development only: skip TLS certificate verification for requests to the
+  // DAV server (self-signed or internal-CA certs). Does not affect
+  // subscription feeds. A loud warning is logged at startup.
+  davInsecureTls: process.env.DAV_INSECURE_TLS === 'true',
   // Upper bound, in ms, on any single outbound request (DAV or
   // subscription feed) -- without it a server that accepts the connection
   // and then stalls would hold the request open forever.

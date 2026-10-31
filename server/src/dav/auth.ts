@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import type { DavContext } from './context.js'
 import { assertHostAllowed, assertHrefSameHost } from './hostAllowlist.js'
+import { davHttpFetch } from './tls.js'
 import { withTimeout } from './timeout.js'
 
 export type AuthMethod = 'Basic' | 'Digest'
@@ -117,7 +118,7 @@ export function buildDigestHeader(
  */
 export async function detectAuthMethod(baseUrl: string): Promise<AuthMethod> {
   async function probe(url: string): Promise<{ status: number; wa: string; location: string | null }> {
-    const res = await fetch(url, withTimeout({
+    const res = await davHttpFetch(url, withTimeout({
       method: 'PROPFIND',
       redirect: 'manual',
       headers: { 'Content-Type': 'application/xml', Depth: '0' },
@@ -255,7 +256,7 @@ export async function davFetch(
   assertHrefSameHost(ctx.baseUrl, targetUrl(input))
   const init = withTimeout(requestInit)
   if (ctx.authMethod !== 'Digest') {
-    return rejectIfUnauthorized(await fetch(input, withAuthHeader(init, basicAuthHeader(ctx).Authorization)))
+    return rejectIfUnauthorized(await davHttpFetch(input, withAuthHeader(init, basicAuthHeader(ctx).Authorization)))
   }
 
   const url = targetUrl(input)
@@ -269,7 +270,7 @@ export async function davFetch(
       ? entry.cnonce
       : randomBytes(16).toString('hex')
     const header = buildDigestHeader(ctx, { method, uri, challenge: entry.challenge, nc: entry.nc, cnonce })
-    return fetch(input, withAuthHeader(init, header))
+    return davHttpFetch(input, withAuthHeader(init, header))
   }
 
   // Authenticate with a freshly negotiated challenge. A 401 here means the
@@ -310,7 +311,7 @@ export async function davFetch(
   let challenge: DigestChallenge | null = null
 
   if (BODY_OPTIONAL_METHODS.has(method)) {
-    const probe = await fetch(input, withoutBody(init, method))
+    const probe = await davHttpFetch(input, withoutBody(init, method))
     if (probe.status === 401) {
       challenge = parseDigestChallenge(probe.headers.get('www-authenticate') ?? '')
     }
@@ -320,7 +321,7 @@ export async function davFetch(
   if (!challenge) {
     // No challenge yet (a body-required method, or the probe wasn't 401'd):
     // send the real request unauthenticated and negotiate from its response.
-    const res = await fetch(input, init)
+    const res = await davHttpFetch(input, init)
     if (res.status !== 401) return res
     challenge = parseDigestChallenge(res.headers.get('www-authenticate') ?? '')
     // 401 with no Digest challenge: the server no longer offers the scheme

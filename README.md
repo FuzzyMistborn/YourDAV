@@ -145,6 +145,12 @@ TLS-terminating reverse proxy in front and access over HTTPS, or, for a
 trusted LAN, uncomment `NODE_ENV: development` in `docker-compose.yml` and
 `docker compose up -d` again (no rebuild needed).
 
+**DAV server uses a self-signed certificate?** Preferably mount your CA and
+set `NODE_EXTRA_CA_CERTS=/path/to/ca.pem`. For development only, set
+`DAV_INSECURE_TLS=true` to skip certificate verification for requests to the
+DAV server (subscription feeds are unaffected). A warning is logged at
+startup; never use it in production, as credentials can be intercepted.
+
 ## Running locally for development
 
 Requires Node.js and a running CalDAV/CardDAV server to point at.
