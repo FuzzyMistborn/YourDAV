@@ -6,6 +6,7 @@
     "dev": "vite",
     "build": "npm run typecheck && vite build",
     "typecheck": "node scripts/vue-tsc.cjs -b",
+    "test": "vitest run",
     "preview": "vite preview"
   },
   "dependencies": {
