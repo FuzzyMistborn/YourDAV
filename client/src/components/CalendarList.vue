@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Calendar } from '@yourdav/shared'
 import { computed, nextTick, ref } from 'vue'
+import { sortCalendars } from '../lib/calendarSort.js'
 import { useCalendarsStore } from '../stores/calendars.js'
 import { useSettingsStore } from '../stores/settings.js'
 import CalendarListItem from './CalendarListItem.vue'
@@ -12,15 +13,7 @@ const store = useCalendarsStore()
 const settingsStore = useSettingsStore()
 
 function sorted(calendars: Calendar[]): Calendar[] {
-  switch (settingsStore.calendarSortOrder) {
-    case 'name-asc':
-      return [...calendars].sort((a, b) => a.displayName.localeCompare(b.displayName))
-    case 'name-desc':
-      return [...calendars].sort((a, b) => b.displayName.localeCompare(a.displayName))
-    case 'server':
-    default:
-      return calendars
-  }
+  return sortCalendars(calendars, settingsStore.calendarSortOrder)
 }
 
 const ownCalendars = computed(() => sorted(store.calendars.filter((c) => !c.isShared)))

@@ -2,6 +2,7 @@
 import type { AlarmFields, Calendar, CalendarObject, EventFields } from '@yourdav/shared'
 import { DateTime } from 'luxon'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { sortCalendars } from '../lib/calendarSort.js'
 import { REMINDER_PRESETS } from '../lib/reminders.js'
 import { useSessionStore } from '../stores/session.js'
 import { useSettingsStore } from '../stores/settings.js'
@@ -500,8 +501,12 @@ onMounted(() => {
 // (see requireWritableCalendar server-side). Always keep the event's
 // current calendar in the list even if it's since become read-only, so
 // switching it away is still possible without losing the selection.
+// Ordered per the user's calendar sort setting, matching the sidebar.
 const writableCalendars = computed(() =>
-  props.calendars.filter((c) => !c.readOnly || c.id === props.event?.calendarId),
+  sortCalendars(
+    props.calendars.filter((c) => !c.readOnly || c.id === props.event?.calendarId),
+    settingsStore.calendarSortOrder,
+  ),
 )
 </script>
 
