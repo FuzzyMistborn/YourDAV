@@ -38,6 +38,26 @@ server's own RRULE/ETag validation, which is still only checked by hand.
   (see "Verified against Baikal 0.11.1: sharing and recurrence"). Still
   untested on Baikal: `EXDATE`s written by *other* clients, and the cache-on
   (SQLite sync) path.
+- **"Not supported" gaps found in a code sweep (2026-11)** — to revisit:
+  - *Custom repeat rules*: `EventEditDialog.vue` shows a disabled "Custom
+    (unsupported here)" option for an RRULE it can't parse (`parseRepeat`
+    rejects keys outside its allow-list). The rule is preserved on save but
+    can't be edited there — the likeliest next feature.
+  - *Export of events with no real CalDAV object locator*:
+    `EventDetailPopover.vue` hides export for them (comment says "isn't
+    supported"); which event kinds this covers wasn't checked.
+  - *Settings/subscriptions sync* depends on the DAV server accepting a
+    PROPPATCH property; otherwise `SettingsUnsupportedError` and the client
+    keeps them in browser `localStorage` only (per-browser, not synced).
+  - *Notifications* report `'unsupported'` in browsers without the
+    Notification API.
+  - *Mapper drops*: `RDATE;VALUE=PERIOD` is skipped, and alarm types other
+    than relative `DISPLAY` triggers are silently dropped (`mapper.ts`).
+  - *Edit dialog "All events"* on a later occurrence still sends that
+    occurrence's times as the series start (drag/resize use `shift` to avoid
+    this). Reasoned from the code, not reproduced.
+  - Recurring drag/resize (`shift`, scope dialog) is API-verified on Radicale
+    and Baikal but not yet driven in a browser.
 - **Calendar UI browser coverage** — dark mode on every calendar view and the
   event edit dialog have been driven in a browser. Not yet exercised in one:
   the undo toast, duplicate / copy-paste, the print view, agenda / year views
