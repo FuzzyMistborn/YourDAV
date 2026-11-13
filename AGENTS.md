@@ -941,7 +941,7 @@ From an external review of the code:
   No per-(server, username) throttle.
 - **Subscriptions**: 60s result cache keyed by url+start+end (shared by
   in-flight requests, failures not cached, 100 entries), 4 concurrent
-  uncached fetches per account (429), range capped at 800 days.
+  uncached fetches per account (429; `holidays:` URLs are generated locally and exempt), range capped at 800 days.
 - **Origin check** (`originCheck.ts`) on non-GET requests; missing Origin is
   allowed. The global error handler returns a generic 500 for anything that
   isn't a Fastify 4xx.
