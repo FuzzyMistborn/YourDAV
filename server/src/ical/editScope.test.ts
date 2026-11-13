@@ -66,6 +66,16 @@ describe('applyAll', () => {
     expect(occurrences.find((o) => o.summary === 'Standup (special)')?.start).toBe('2026-03-25T16:00:00.000Z')
   })
 
+  it('keeps the series start and takes the new duration for a zero shift (resize)', () => {
+    const ics = calendarObjectToIcs('uid-resize', baseFields())
+    // Resize the 2026-03-17 occurrence from 30 to 90 minutes.
+    const resized = baseFields({ start: '2026-03-17T15:00:00.000Z', end: '2026-03-17T16:30:00.000Z' })
+    const occurrences = expand(applyAll(ics, resized, { days: 0, milliseconds: 0 }))
+    expect(occurrences).toHaveLength(6)
+    expect(occurrences[0]?.start).toBe('2026-03-10T15:00:00.000Z')
+    expect(occurrences.every((o) => new Date(o.end).getTime() - new Date(o.start).getTime() === 90 * 60_000)).toBe(true)
+  })
+
   it('shifts an all-day series by whole days', () => {
     const fields = baseFields({ allDay: true, start: '2026-03-10', end: '2026-03-11' })
     const ics = calendarObjectToIcs('uid-shift-ad', fields)
