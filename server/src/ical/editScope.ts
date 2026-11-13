@@ -1,4 +1,4 @@
-import type { EventFields } from '@yourdav/shared'
+import type { EventFields, EventShift } from '@yourdav/shared'
 import ICAL from 'ical.js'
 import { buildVeventComponent } from './mapper.js'
 import { registerEmbeddedTimezones } from './timezones.js'
@@ -134,7 +134,7 @@ function shiftOverride(override: ICAL.Component, delta: ICAL.Duration): void {
  * there's no sensible delta to compute, so overrides are dropped in that
  * one case only, same as the old blanket behavior.
  */
-export function applyAll(ics: string, fields: EventFields): string {
+export function applyAll(ics: string, fields: EventFields, shift?: EventShift): string {
   const comp = parseCalendar(ics)
   const master = getMaster(comp)
   const uid = master.getFirstPropertyValue('uid') as string
@@ -146,6 +146,23 @@ export function applyAll(ics: string, fields: EventFields): string {
   }
   const newMaster = buildVeventComponent(uid, fields)
   comp.addSubcomponent(newMaster)
+
+  if (shift && !oldMasterDtstart.isDate === !fields.allDay) {
+    // `fields` describe the dragged occurrence, not the master: move the
+    // master's own start by the drag delta (wall-clock, so it survives DST)
+    // and keep the duration `fields` carries.
+    const fieldStart = newMaster.getFirstPropertyValue('dtstart') as ICAL.Time
+    const fieldEnd = newMaster.getFirstPropertyValue('dtend') as ICAL.Time
+    const duration = fieldEnd.subtractDate(fieldStart)
+    const movedStart = oldMasterDtstart.clone()
+    movedStart.addDuration(
+      new ICAL.Duration({ days: shift.days, seconds: Math.trunc(shift.milliseconds / 1000) }),
+    )
+    const movedEnd = movedStart.clone()
+    movedEnd.addDuration(duration)
+    newMaster.updatePropertyWithValue('dtstart', movedStart)
+    newMaster.updatePropertyWithValue('dtend', movedEnd)
+  }
 
   const newMasterDtstart = newMaster.getFirstPropertyValue('dtstart') as ICAL.Time
   if (oldMasterDtstart.isDate === newMasterDtstart.isDate) {

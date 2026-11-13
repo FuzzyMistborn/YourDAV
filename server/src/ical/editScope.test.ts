@@ -49,6 +49,32 @@ describe('applyThisOccurrence', () => {
 })
 
 describe('applyAll', () => {
+  it('shifts the series master by the drag delta, not to the dragged occurrence', () => {
+    let ics = calendarObjectToIcs('uid-shift', baseFields())
+    ics = applyThisOccurrence(
+      ics,
+      '2026-03-24T15:00:00.000Z',
+      baseFields({ summary: 'Standup (special)', start: '2026-03-24T15:00:00.000Z', end: '2026-03-24T15:30:00.000Z' }),
+    )
+    // Drag the 2026-03-17 occurrence one day + 1h later.
+    const dragged = baseFields({ start: '2026-03-18T16:00:00.000Z', end: '2026-03-18T16:30:00.000Z' })
+    const result = applyAll(ics, dragged, { days: 1, milliseconds: 3_600_000 })
+    const occurrences = expand(result)
+    expect(occurrences).toHaveLength(6)
+    expect(occurrences[0]?.start).toBe('2026-03-11T16:00:00.000Z')
+    expect(occurrences[0]?.end).toBe('2026-03-11T16:30:00.000Z')
+    expect(occurrences.find((o) => o.summary === 'Standup (special)')?.start).toBe('2026-03-25T16:00:00.000Z')
+  })
+
+  it('shifts an all-day series by whole days', () => {
+    const fields = baseFields({ allDay: true, start: '2026-03-10', end: '2026-03-11' })
+    const ics = calendarObjectToIcs('uid-shift-ad', fields)
+    const dragged = { ...fields, start: '2026-03-18', end: '2026-03-19' }
+    const occurrences = expand(applyAll(ics, dragged, { days: 1, milliseconds: 0 }))
+    expect(occurrences[0]?.start.slice(0, 10)).toBe('2026-03-11')
+    expect(occurrences).toHaveLength(6)
+  })
+
   it('rewrites the master and shifts existing overrides by the DTSTART delta', () => {
     let ics = calendarObjectToIcs('uid2', baseFields())
     ics = applyThisOccurrence(

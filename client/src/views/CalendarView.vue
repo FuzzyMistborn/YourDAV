@@ -20,7 +20,7 @@ import classicThemePlugin from '@fullcalendar/vue3/themes/classic'
 import '@fullcalendar/vue3/skeleton.css'
 import '@fullcalendar/vue3/themes/classic/theme.css'
 import '@fullcalendar/vue3/themes/classic/palette.css'
-import type { CalendarObject, EditScope, EventFields } from '@yourdav/shared'
+import type { CalendarObject, EditScope, EventFields, EventShift } from '@yourdav/shared'
 import { DateTime } from 'luxon'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppNavSwitcher from '../components/AppNavSwitcher.vue'
@@ -351,8 +351,17 @@ function calendarNameFor(calendarId: string): string {
 const pendingScopeAction = ref<
   | { kind: 'save'; event: CalendarObject; calendarId: string; fields: EventFields }
   | { kind: 'delete'; event: CalendarObject }
+  // A dropped recurring occurrence: the drag is left in place until a scope
+  // is chosen; cancelling (or a failed save) calls `revert`.
+  | { kind: 'drop'; event: CalendarObject; fields: EventFields; shift: EventShift; revert: () => void }
   | null
 >(null)
+
+function onScopeCancel(): void {
+  const action = pendingScopeAction.value
+  pendingScopeAction.value = null
+  if (action?.kind === 'drop') action.revert()
+}
 
 function onEventClick(arg: EventClickInfo): void {
   const rect = arg.el.getBoundingClientRect()
@@ -513,7 +522,14 @@ function onConfirmDelete(): void {
 // reapply against the fresh etag, rather than the edit just vanishing. ---
 
 type PendingConflict =
-  | { kind: 'update'; event: CalendarObject; fields: EventFields; scope: EditScope; calendarId: string }
+  | {
+      kind: 'update'
+      event: CalendarObject
+      fields: EventFields
+      scope: EditScope
+      calendarId: string
+      shift?: EventShift
+    }
   | { kind: 'delete'; event: CalendarObject; scope: EditScope }
 const pendingConflict = ref<PendingConflict | null>(null)
 const conflictServerEvent = ref<CalendarObject | null>(null)
@@ -535,6 +551,8 @@ async function doUpdate(
   fields: EventFields,
   scope: EditScope,
   calendarId: string = event.calendarId,
+  shift?: EventShift,
+  onError?: () => void,
 ): Promise<void> {
   try {
     await eventsStore.updateEvent(event.calendarId, event.uid, {
@@ -544,15 +562,17 @@ async function doUpdate(
       scope,
       recurrenceId: event.recurrenceId,
       calendarId,
+      shift,
     })
     offerEditUndo(event, calendarId, calendarId !== event.calendarId ? 'Moved' : 'Edited')
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 412) {
       await eventsStore.reloadLastRange()
       conflictServerEvent.value = eventsStore.findEvent(event.calendarId, event.uid, event.recurrenceId) ?? null
-      pendingConflict.value = { kind: 'update', event, fields, scope, calendarId }
+      pendingConflict.value = { kind: 'update', event, fields, scope, calendarId, shift }
       return
     }
+    onError?.()
     errorBanner.value = err instanceof ApiRequestError ? err.message : 'Failed to save event.'
   }
 }
@@ -618,6 +638,7 @@ function onConflictReapply(): void {
       conflict.fields,
       conflict.scope,
       conflict.calendarId,
+      conflict.shift,
     )
   } else {
     void doDelete({ ...conflict.event, etag: fresh.etag, href: fresh.href }, conflict.scope)
@@ -631,6 +652,8 @@ function onScopeChosen(scope: EditScope): void {
 
   if (action.kind === 'save') {
     void doUpdate(action.event, action.fields, scope, action.calendarId)
+  } else if (action.kind === 'drop') {
+    void doUpdate(action.event, action.fields, scope, action.event.calendarId, action.shift, action.revert)
   } else {
     void doDelete(action.event, scope)
   }
@@ -706,13 +729,6 @@ function offerEditUndo(before: CalendarObject, newCalendarId: string, verb: stri
 
 async function onEventDrop(arg: EventDropInfo): Promise<void> {
   const event = arg.event.extendedProps.source as CalendarObject
-  if (event.isRecurring) {
-    // Dragging a recurring occurrence needs a scope choice; keep it simple
-    // for v1 and require using the edit dialog instead.
-    arg.revert()
-    errorBanner.value = 'Drag-and-drop is not yet supported for recurring events -- use the edit dialog.'
-    return
-  }
   let start: string
   let end: string
   if (event.allDay) {
@@ -721,6 +737,19 @@ async function onEventDrop(arg: EventDropInfo): Promise<void> {
   } else {
     start = dropDateString(arg.event.start, false, event.start)
     end = dropDateString(arg.event.end ?? arg.event.start, false, event.end)
+  }
+  if (event.isRecurring) {
+    // Keep the dragged position on screen while the scope dialog is open;
+    // "All" moves the whole series by the drag delta (see EventShift).
+    const days = (arg.delta.years ?? 0) * 365 + (arg.delta.months ?? 0) * 30 + (arg.delta.days ?? 0)
+    pendingScopeAction.value = {
+      kind: 'drop',
+      event,
+      fields: toFields(event, start, end),
+      shift: { days, milliseconds: arg.delta.milliseconds ?? 0 },
+      revert: arg.revert,
+    }
+    return
   }
   try {
     await eventsStore.updateEvent(event.calendarId, event.uid, {
@@ -1119,9 +1148,9 @@ watch(enabledSubscriptionIds, (ids, oldIds) => {
 
     <RecurrenceScopeDialog
       v-if="pendingScopeAction"
-      :verb="pendingScopeAction.kind === 'save' ? 'Save' : 'Delete'"
+      :verb="pendingScopeAction.kind === 'save' ? 'Save' : pendingScopeAction.kind === 'drop' ? 'Move' : 'Delete'"
       @choose="onScopeChosen"
-      @cancel="pendingScopeAction = null"
+      @cancel="onScopeCancel"
     />
 
     <ConflictDialog

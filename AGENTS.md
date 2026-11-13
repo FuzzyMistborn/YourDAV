@@ -388,6 +388,16 @@ next saved.
   master's DTSTART delta (`shiftOverride()`) and carried; `applyThisAndFuture`
   also re-keys them onto the new series's UID. No sensible time delta exists
   across a DATE↔DATE-TIME boundary.
+- **Drag-and-drop of a recurring occurrence** shows the scope dialog (the
+  drag stays on screen until chosen; Cancel or a failed save reverts it).
+  `This`/`This and future` send the occurrence's new times as usual. `All`
+  sends `UpdateEventInput.shift` (`{ days, milliseconds }`, FullCalendar's
+  drop delta) and `applyAll` moves the *master's own* DTSTART by it
+  (wall-clock, so DST-safe), keeping `fields`' duration -- `fields` describe
+  the dragged occurrence, so using them as the master times would reset the
+  series start. The edit dialog's `All` has no such shift (it still sends the
+  occurrence's times). Verified (2026-11) against Radicale and Baikal via the
+  API. Resizing recurring events is still unsupported.
 - No separate expansion "horizon" cap — the iterator stops at `range.end`,
   so the requested range is the bound.
 - *Ordinal `BYDAY`* and *RDATE* needed no server work beyond `mapper.ts`
