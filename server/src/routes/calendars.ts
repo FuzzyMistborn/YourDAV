@@ -7,7 +7,7 @@ import type {
   UpdateCalendarInput,
   UpdateEventInput,
 } from '@yourdav/shared'
-import type { Calendar } from '@yourdav/shared'
+import type { Calendar, EventShift } from '@yourdav/shared'
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import ICAL from 'ical.js'
 import { assertHrefSameHost } from '../dav/hostAllowlist.js'
@@ -25,6 +25,13 @@ import { EtagConflictError } from '../store/errors.js'
 import type { RawObject } from '../store/CalendarStore.js'
 import { store } from '../store/index.js'
 import { requireSession } from './requireSession.js'
+
+function shiftFromBody(raw: unknown): EventShift | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const { days, milliseconds } = raw as Record<string, unknown>
+  if (!Number.isInteger(days) || typeof milliseconds !== 'number' || !Number.isFinite(milliseconds)) return undefined
+  return { days: days as number, milliseconds }
+}
 
 function isEditScope(scope: unknown): scope is EditScope {
   return scope === 'this' || scope === 'thisAndFuture' || scope === 'all'
@@ -445,7 +452,7 @@ export async function calendarRoutes(app: FastifyInstance): Promise<void> {
         // scope === 'all'
         const raw = await loadOwnedRawObject(dav, calendar, href, uid, reply)
         if (!raw) return
-        const newIcs = editScope.applyAll(raw.ics, fields)
+        const newIcs = editScope.applyAll(raw.ics, fields, shiftFromBody(req.body.shift))
 
         const targetCalendarId = req.body.calendarId
         if (targetCalendarId && targetCalendarId !== calendarId) {

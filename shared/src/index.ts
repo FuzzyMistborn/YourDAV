@@ -89,6 +89,17 @@ export interface UpdateEventInput {
   // calendar for a normal edit; a different id moves the event (only
   // supported for scope 'all' -- see routes/calendars.ts).
   calendarId?: string
+  // Drag-and-drop move of a recurring occurrence with scope 'all': the series
+  // is moved by this wall-clock delta (whole days plus milliseconds) from its
+  // *own* start, instead of taking `fields.start/end` -- which describe the
+  // dragged occurrence, not the series master -- as the new master times.
+  // Ignored for other scopes.
+  shift?: EventShift
+}
+
+export interface EventShift {
+  days: number
+  milliseconds: number
 }
 
 export interface DeleteEventInput {
