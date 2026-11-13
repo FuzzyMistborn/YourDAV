@@ -351,9 +351,16 @@ function calendarNameFor(calendarId: string): string {
 const pendingScopeAction = ref<
   | { kind: 'save'; event: CalendarObject; calendarId: string; fields: EventFields }
   | { kind: 'delete'; event: CalendarObject }
-  // A dropped recurring occurrence: the drag is left in place until a scope
-  // is chosen; cancelling (or a failed save) calls `revert`.
-  | { kind: 'drop'; event: CalendarObject; fields: EventFields; shift: EventShift; revert: () => void }
+  // A dropped/resized recurring occurrence: the change is left in place until
+  // a scope is chosen; cancelling (or a failed save) calls `revert`.
+  | {
+      kind: 'drop'
+      verb: 'Move' | 'Resize'
+      event: CalendarObject
+      fields: EventFields
+      shift: EventShift
+      revert: () => void
+    }
   | null
 >(null)
 
@@ -744,6 +751,7 @@ async function onEventDrop(arg: EventDropInfo): Promise<void> {
     const days = (arg.delta.years ?? 0) * 365 + (arg.delta.months ?? 0) * 30 + (arg.delta.days ?? 0)
     pendingScopeAction.value = {
       kind: 'drop',
+      verb: 'Move',
       event,
       fields: toFields(event, start, end),
       shift: { days, milliseconds: arg.delta.milliseconds ?? 0 },
@@ -769,11 +777,6 @@ async function onEventDrop(arg: EventDropInfo): Promise<void> {
 
 async function onEventResize(arg: EventResizeDoneInfo): Promise<void> {
   const event = arg.event.extendedProps.source as CalendarObject
-  if (event.isRecurring) {
-    arg.revert()
-    errorBanner.value = 'Resizing is not yet supported for recurring events -- use the edit dialog.'
-    return
-  }
   const start = dropDateString(arg.event.start, event.allDay, event.start)
   // For an all-day event with no reported end (single-day), the exclusive
   // DTEND is the day after the start, not the start itself.
@@ -783,6 +786,19 @@ async function onEventResize(arg: EventResizeDoneInfo): Promise<void> {
       ? DateTime.fromJSDate(arg.event.start).plus({ days: 1 }).toJSDate()
       : arg.event.start)
   const end = dropDateString(endDate, event.allDay, event.end)
+  if (event.isRecurring) {
+    // Only the duration changes: a zero shift tells "All" to keep the series
+    // start and take the new length from `fields` (see EventShift).
+    pendingScopeAction.value = {
+      kind: 'drop',
+      verb: 'Resize',
+      event,
+      fields: toFields(event, start, end),
+      shift: { days: 0, milliseconds: 0 },
+      revert: arg.revert,
+    }
+    return
+  }
   try {
     await eventsStore.updateEvent(event.calendarId, event.uid, {
       href: event.href,
@@ -1148,7 +1164,7 @@ watch(enabledSubscriptionIds, (ids, oldIds) => {
 
     <RecurrenceScopeDialog
       v-if="pendingScopeAction"
-      :verb="pendingScopeAction.kind === 'save' ? 'Save' : pendingScopeAction.kind === 'drop' ? 'Move' : 'Delete'"
+      :verb="pendingScopeAction.kind === 'save' ? 'Save' : pendingScopeAction.kind === 'drop' ? pendingScopeAction.verb : 'Delete'"
       @choose="onScopeChosen"
       @cancel="onScopeCancel"
     />

@@ -397,7 +397,9 @@ next saved.
   the dragged occurrence, so using them as the master times would reset the
   series start. The edit dialog's `All` has no such shift (it still sends the
   occurrence's times). Verified (2026-11) against Radicale and Baikal via the
-  API. Resizing recurring events is still unsupported.
+  API. Resizing a recurring occurrence uses the same dialog and the same
+  `shift` with a zero delta: `All` keeps the series start and takes the new
+  duration from `fields`.
 - No separate expansion "horizon" cap — the iterator stops at `range.end`,
   so the requested range is the bound.
 - *Ordinal `BYDAY`* and *RDATE* needed no server work beyond `mapper.ts`
