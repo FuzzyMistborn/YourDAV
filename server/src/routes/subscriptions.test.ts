@@ -237,6 +237,19 @@ describe('holiday calendars over HTTP', () => {
     expect(fetchSubscriptionEvents).toHaveBeenCalledWith('holidays:US', expect.anything())
   })
 
+  it('does not count holiday calendars toward, or refuse them under, the in-flight cap', async () => {
+    fetchSubscriptionEvents.mockReturnValue(new Promise(() => {}))
+    const app = await buildApp()
+    const base = 'start=2026-01-01T00:00:00.000Z&end=2026-02-01T00:00:00.000Z'
+    for (let i = 0; i < 4; i++) {
+      void app.inject({ method: 'GET', url: `/api/subscriptions/events?url=https%3A%2F%2Fexample.com%2F${i}.ics&${base}` })
+    }
+    await new Promise((r) => setTimeout(r, 50))
+    fetchSubscriptionEvents.mockResolvedValue([])
+    const res = await app.inject({ method: 'GET', url: `/api/subscriptions/events?url=holidays%3AUS&${base}` })
+    expect(res.statusCode).toBe(200)
+  })
+
   it('400s a holidays: URL with an unknown country', async () => {
     const res = await (await buildApp()).inject({
       method: 'GET',

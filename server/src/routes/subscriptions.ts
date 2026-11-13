@@ -153,11 +153,15 @@ export async function subscriptionRoutes(app: FastifyInstance): Promise<void> {
     const userKey = `${dav.baseUrl}\n${dav.username}`
     const count = inFlight.get(userKey) ?? 0
     if (!cached) {
-      if (count >= MAX_CONCURRENT_PER_USER) {
+      // Holiday calendars are generated locally (no network), so they neither
+      // count toward nor are refused by the per-account fetch cap.
+      const local = isHolidayUrl(url)
+      if (!local && count >= MAX_CONCURRENT_PER_USER) {
         return reply.code(429).send({ error: 'too_many_requests', message: 'Too many subscription requests in progress' })
       }
-      inFlight.set(userKey, count + 1)
+      if (!local) inFlight.set(userKey, count + 1)
       const events = fetchSubscriptionEvents(url, { start, end }).finally(() => {
+        if (local) return
         const remaining = (inFlight.get(userKey) ?? 1) - 1
         if (remaining > 0) inFlight.set(userKey, remaining)
         else inFlight.delete(userKey)
