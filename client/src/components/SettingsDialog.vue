@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { sortCalendars } from '../lib/calendarSort.js'
 import { REMINDER_PRESETS } from '../lib/reminders.js'
 import { useCalendarsStore } from '../stores/calendars.js'
 import { useSessionStore } from '../stores/session.js'
@@ -104,6 +105,15 @@ function lengthLabel(minutes: number): string {
 // read-only or hidden can't actually be used to create an event.
 const writableEnabledCalendarIds = computed(() =>
   calendarsStore.calendars.filter((c) => calendarsStore.enabled[c.id] && !c.readOnly).map((c) => c.id),
+)
+
+// Display order for the calendar pickers below, per the sort setting. Kept
+// separate from writableEnabledCalendarIds, whose first entry (server order)
+// is the fallback default CalendarView also computes -- sorting that would
+// make the fallback disagree.
+const sortedCalendars = computed(() => sortCalendars(calendarsStore.calendars, settingsStore.calendarSortOrder))
+const sortedWritableEnabledCalendars = computed(() =>
+  sortedCalendars.value.filter((c) => writableEnabledCalendarIds.value.includes(c.id)),
 )
 
 const preferredDefaultCalendarId = computed(() =>
@@ -232,8 +242,8 @@ function toggleDefaultVisible(id: string): void {
       <label v-if="writableEnabledCalendarIds.length > 0" class="dialog__field dialog__field--row">
         <span>Default calendar</span>
         <select v-model="defaultCalendarModel">
-          <option v-for="id in writableEnabledCalendarIds" :key="id" :value="id">
-            {{ calendarsStore.calendars.find((c) => c.id === id)?.displayName }}
+          <option v-for="cal in sortedWritableEnabledCalendars" :key="cal.id" :value="cal.id">
+            {{ cal.displayName }}
           </option>
         </select>
       </label>
@@ -267,7 +277,7 @@ function toggleDefaultVisible(id: string): void {
 
       <div v-if="calendarsStore.calendars.length > 0" class="dialog__field">
         <span>Default visible calendars</span>
-        <label v-for="cal in calendarsStore.calendars" :key="cal.id" class="dialog__checkbox">
+        <label v-for="cal in sortedCalendars" :key="cal.id" class="dialog__checkbox">
           <input
             type="checkbox"
             :checked="isDefaultVisible(cal.id)"
