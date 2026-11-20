@@ -25,16 +25,16 @@ describe('holiday calendars', () => {
     expect(xmas!.start.slice(0, 10)).toBe('2026-12-25')
   })
 
-  it('leaves out observances like Valentine\'s Day', () => {
+  it('leaves out observances like Valentine’s Day', () => {
     const events = fetchHolidayEvents('holidays:US', range2026)
-    expect(events.some((e) => e.summary === "Valentine's Day")).toBe(false)
+    expect(events.some((e) => e.summary === "Valentine’s Day")).toBe(false)
   })
 
   it('adds observances (but not optional days) with ?observances', () => {
     const events = fetchHolidayEvents('holidays:US?observances', range2026)
     const names = events.map((e) => e.summary)
-    expect(names).toContain("Valentine's Day")
-    expect(names).toContain("Mother's Day")
+    expect(names).toContain("Valentine’s Day")
+    expect(names).toContain("Mother’s Day")
     expect(names).toContain('Christmas Day')
     expect(names).not.toContain('Christmas Eve')
     expect(events.length).toBeGreaterThan(fetchHolidayEvents('holidays:US', range2026).length)
