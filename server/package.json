@@ -11,16 +11,16 @@
   "dependencies": {
     "@fastify/rate-limit": "^11.2.2",
     "@fastify/secure-session": "^8.4.2",
-    "@fastify/static": "^10.1.11",
+    "@fastify/static": "^10.1.12",
     "@touch4it/ical-timezones": "^1.9.0",
     "@yourdav/shared": "*",
-    "better-sqlite3": "^13.1.1",
-    "date-holidays": "^3.39.1",
+    "better-sqlite3": "^13.2.0",
+    "date-holidays": "^3.39.2",
     "fastify": "^5.12.8",
     "ical.js": "^2.1.0",
     "luxon": "^3.5.0",
-    "tsdav": "^2.5.0",
-    "undici": "^8.12.4",
+    "tsdav": "^2.5.1",
+    "undici": "^8.13.0",
     "xml-js": "1.6.11"
   },
   "devDependencies": {
@@ -28,6 +28,6 @@
     "@types/luxon": "^3.7.6",
     "@types/node": "^26.6.6",
     "tsx": "^4.23.15",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.1"
   }
 }

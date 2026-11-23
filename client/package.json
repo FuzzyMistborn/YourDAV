@@ -15,8 +15,8 @@
     "luxon": "^3.5.0",
     "pinia": "^4.1.0",
     "temporal-polyfill": "^1.0.6",
-    "vue": "^3.5.45",
-    "vue-router": "^5.5.0"
+    "vue": "^3.5.46",
+    "vue-router": "^5.5.1"
   },
   "devDependencies": {
     "@types/luxon": "^3.7.6",
