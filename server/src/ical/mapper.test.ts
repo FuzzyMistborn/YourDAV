@@ -36,6 +36,12 @@ describe('mapper round-trip', () => {
     expect(new Date(obj.end).toISOString()).toBe(fields.end)
   })
 
+  it('trims leading and trailing whitespace from the title', () => {
+    const ics = calendarObjectToIcs('test-uid', baseFields({ summary: '  Dentiste   ' }))
+    expect(ics).toMatch(/^SUMMARY:Dentiste\r?$/m)
+    expect(roundTrip(baseFields({ summary: 'Dentiste ' })).summary).toBe('Dentiste')
+  })
+
   it('preserves an all-day event across its exact calendar date', () => {
     const fields = baseFields({
       allDay: true,
