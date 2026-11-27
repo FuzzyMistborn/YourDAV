@@ -122,7 +122,11 @@ export function buildVeventComponent(uid: string, fields: EventFields): ICAL.Com
   const event = new ICAL.Event(vevent)
 
   event.uid = uid
-  event.summary = fields.summary
+  // Trim the title: mobile keyboards often append a space after an accepted
+  // suggestion, and a trailing space in the SUMMARY line is flagged as a
+  // non-standard value by some CalDAV consumers (e.g. Home Assistant's caldav
+  // integration). Every write path (create, edit scopes) goes through here.
+  event.summary = fields.summary.trim()
   if (fields.description) event.description = fields.description
   if (fields.location) event.location = fields.location
 
