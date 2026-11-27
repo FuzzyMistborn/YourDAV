@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api.js'
+import { currentLocale, t } from '../i18n.js'
 import { useSettingsStore } from '../stores/settings.js'
 import { useSubscriptionsStore } from '../stores/subscriptions.js'
 import ConfirmDialog from './ConfirmDialog.vue'
@@ -57,6 +58,16 @@ const addedCountryCodes = computed(
   ),
 )
 
+// The server lists countries by their English name; show them in the active
+// language instead when the browser knows it.
+function countryName(c: { code: string; name: string }): string {
+  try {
+    return new Intl.DisplayNames([currentLocale()], { type: 'region' }).of(c.code) ?? c.name
+  } catch {
+    return c.name
+  }
+}
+
 async function toggleHolidays(): Promise<void> {
   addingHolidays.value = !addingHolidays.value
   if (addingHolidays.value && countries.value.length === 0) {
@@ -74,7 +85,7 @@ function submitHolidays(): void {
   if (!country) return
   const withObservances = includeObservances.value
   store.add(
-    `${country.name} holidays${withObservances ? ' & observances' : ''}`,
+    t(withObservances ? 'subscriptions.holidaysObservancesName' : 'subscriptions.holidaysName', { country: countryName(country) }),
     `holidays:${country.code}${withObservances ? '?observances' : ''}`,
   )
   selectedCountry.value = ''
@@ -134,52 +145,52 @@ function confirmRemove(): void {
 <template>
   <div class="subscription-list">
     <div class="subscription-list__header">
-      <h2 class="subscription-list__heading">Subscriptions</h2>
+      <h2 class="subscription-list__heading">{{ $t('subscriptions.heading') }}</h2>
       <span class="subscription-list__header-actions">
         <button type="button" class="btn btn-ghost subscription-list__holidays-btn" @click="toggleHolidays">
-          Holidays
+          {{ $t('subscriptions.holidays') }}
         </button>
-        <button type="button" class="icon-add-btn" title="Add subscription" @click="toggleAdd">+</button>
+        <button type="button" class="icon-add-btn" :title="$t('subscriptions.add')" @click="toggleAdd">+</button>
       </span>
     </div>
     <p v-if="store.syncError" class="subscription-list__sync-error" role="alert">
-      Changes are saved in this browser only: {{ store.syncError }}
+      {{ $t('subscriptions.syncError', { error: store.syncError }) }}
     </p>
 
     <form v-if="addingHolidays" class="subscription-list__form" @submit.prevent="submitHolidays">
-      <select v-model="selectedCountry" required aria-label="Country">
-        <option value="" disabled>{{ countriesError ? 'Could not load countries' : 'Choose a country…' }}</option>
+      <select v-model="selectedCountry" required :aria-label="$t('common.country')">
+        <option value="" disabled>{{ countriesError ? $t('subscriptions.countriesFailed') : $t('subscriptions.chooseCountry') }}</option>
         <option v-for="c in countries" :key="c.code" :value="c.code" :disabled="addedCountryCodes.has(c.code)">
-          {{ c.name }}
+          {{ countryName(c) }}
         </option>
       </select>
       <label class="subscription-list__check">
         <input v-model="includeObservances" type="checkbox" />
-        <span>Include observances (Mother's Day, Valentine's Day, Easter Sunday…)</span>
+        <span>{{ $t('subscriptions.observances') }}</span>
       </label>
       <div class="subscription-list__form-actions">
-        <button type="button" class="btn btn-ghost" @click="addingHolidays = false">Cancel</button>
-        <button type="submit" class="btn btn-primary" :disabled="!selectedCountry">Add</button>
+        <button type="button" class="btn btn-ghost" @click="addingHolidays = false">{{ $t('common.cancel') }}</button>
+        <button type="submit" class="btn btn-primary" :disabled="!selectedCountry">{{ $t('common.add') }}</button>
       </div>
     </form>
 
     <form v-if="adding" class="subscription-list__form" @submit.prevent="submitAdd">
-      <input ref="nameInput" v-model="newName" type="text" placeholder="Name" required />
-      <input v-model="newUrl" type="url" placeholder="https:// or webcal:// URL" required />
+      <input ref="nameInput" v-model="newName" type="text" :placeholder="$t('subscriptions.namePlaceholder')" required />
+      <input v-model="newUrl" type="url" :placeholder="$t('subscriptions.urlPlaceholder')" required />
       <div class="subscription-list__form-actions">
-        <button type="button" class="btn btn-ghost" @click="adding = false">Cancel</button>
-        <button type="submit" class="btn btn-primary">Add</button>
+        <button type="button" class="btn btn-ghost" @click="adding = false">{{ $t('common.cancel') }}</button>
+        <button type="submit" class="btn btn-primary">{{ $t('common.add') }}</button>
       </div>
     </form>
 
     <ul>
       <li v-for="sub in sortedSubscriptions" :key="sub.id" :class="editingId === sub.id ? 'subscription-list__editing' : 'subscription-list__item'">
         <form v-if="editingId === sub.id" class="subscription-list__form" @submit.prevent="submitEdit">
-          <input ref="editNameInput" v-model="editName" type="text" placeholder="Name" required />
-          <input v-if="!editingIsHoliday" v-model="editUrl" type="url" placeholder="https:// or webcal:// URL" required />
+          <input ref="editNameInput" v-model="editName" type="text" :placeholder="$t('subscriptions.namePlaceholder')" required />
+          <input v-if="!editingIsHoliday" v-model="editUrl" type="url" :placeholder="$t('subscriptions.urlPlaceholder')" required />
           <div class="subscription-list__form-actions">
-            <button type="button" class="btn btn-ghost" @click="editingId = null">Cancel</button>
-            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn btn-ghost" @click="editingId = null">{{ $t('common.cancel') }}</button>
+            <button type="submit" class="btn btn-primary">{{ $t('common.save') }}</button>
           </div>
         </form>
         <template v-else>
@@ -192,30 +203,30 @@ function confirmRemove(): void {
           type="color"
           class="subscription-list__swatch"
           :value="sub.color"
-          :title="`Color for ${sub.name}`"
+          :title="$t('common.colorFor', { name: sub.name })"
           @input="onColorInput(sub.id, $event)"
         />
         <div class="subscription-list__menu-wrap">
-          <button type="button" class="subscription-list__menu-btn" title="More options" @click="toggleMenu(sub.id)">⋯</button>
+          <button type="button" class="subscription-list__menu-btn" :title="$t('common.moreOptions')" @click="toggleMenu(sub.id)">⋯</button>
           <ul v-if="menuOpenId === sub.id" class="subscription-list__menu">
             <li>
-              <button type="button" @click="onEditClick(sub)">✎ Edit</button>
+              <button type="button" @click="onEditClick(sub)">✎ {{ $t('common.edit') }}</button>
             </li>
             <li>
-              <button type="button" class="subscription-list__menu-danger" @click="onRemoveClick(sub.id, sub.name)">✕ Remove</button>
+              <button type="button" class="subscription-list__menu-danger" @click="onRemoveClick(sub.id, sub.name)">✕ {{ $t('common.remove') }}</button>
             </li>
           </ul>
         </div>
         </template>
       </li>
-      <li v-if="store.subscriptions.length === 0" class="subscription-list__empty">No subscriptions yet.</li>
+      <li v-if="store.subscriptions.length === 0" class="subscription-list__empty">{{ $t('subscriptions.empty') }}</li>
     </ul>
 
     <ConfirmDialog
       v-if="confirmingRemove"
-      title="Remove subscription"
-      :message="`Remove '${confirmingRemove.name}'? This only removes it from your subscription list; it doesn't affect the original calendar.`"
-      confirm-label="Remove"
+      :title="$t('subscriptions.removeTitle')"
+      :message="$t('subscriptions.removeMessage', { name: confirmingRemove.name })"
+      :confirm-label="$t('common.remove')"
       @confirm="confirmRemove"
       @cancel="confirmingRemove = null"
     />

@@ -33,20 +33,20 @@ function remove(name: string): void {
     :aria-expanded="open"
     @click="toggle"
   >
-    Group ▾
+    {{ $t('groupMenu.button') }} ▾
   </button>
   <Teleport to="body">
     <div v-if="open" ref="menu" class="popmenu" role="menu" :style="{ top: `${pos.top}px`, left: `${pos.left}px` }">
-      <div class="popmenu__heading">Add to group</div>
+      <div class="popmenu__heading">{{ $t('groupMenu.addTo') }}</div>
       <button v-for="g in groups" :key="`a${g}`" type="button" role="menuitem" class="popmenu__item" @click="add(g)">
         {{ g }}
       </button>
       <form class="popmenu__new" @submit.prevent="add(newName)">
-        <input v-model="newName" type="text" class="popmenu__input" placeholder="New group…" aria-label="New group name" />
-        <button type="submit" class="btn btn-primary btn-sm" :disabled="!newName.trim()">Add</button>
+        <input v-model="newName" type="text" class="popmenu__input" :placeholder="$t('groupMenu.newPlaceholder')" :aria-label="$t('groupMenu.newLabel')" />
+        <button type="submit" class="btn btn-primary btn-sm" :disabled="!newName.trim()">{{ $t('common.add') }}</button>
       </form>
       <template v-if="removable.length">
-        <div class="popmenu__heading">Remove from group</div>
+        <div class="popmenu__heading">{{ $t('groupMenu.removeFrom') }}</div>
         <button
           v-for="g in removable"
           :key="`r${g}`"

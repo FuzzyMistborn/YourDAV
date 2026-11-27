@@ -13,30 +13,29 @@ const emit = defineEmits<{ discard: []; reapply: [] }>()
 <template>
   <div class="overlay" @click.self="emit('discard')">
     <div class="dialog">
-      <h2>This {{ noun }} changed elsewhere</h2>
+      <h2>{{ $t(`conflict.title.${noun}`) }}</h2>
       <p class="dialog__hint">
-        Someone (maybe you, in another tab) changed this {{ noun }} before your
-        {{ kind === 'delete' ? 'delete' : 'save' }} went through.
+        {{ $t(`conflict.hint.${noun}`, { action: $t(kind === 'delete' ? 'conflict.action.delete' : 'conflict.action.save') }) }}
       </p>
 
       <div v-if="serverVersion" class="dialog__version">
-        <span class="dialog__version-label">Current version on the server</span>
+        <span class="dialog__version-label">{{ $t('conflict.serverVersion') }}</span>
         <p class="dialog__version-title">{{ serverVersion.title }}</p>
         <p v-if="serverVersion.detail" class="dialog__version-when">{{ serverVersion.detail }}</p>
       </div>
-      <p v-else class="dialog__hint">It looks like this {{ noun }} was deleted elsewhere.</p>
+      <p v-else class="dialog__hint">{{ $t(`conflict.deletedElsewhere.${noun}`) }}</p>
 
       <div class="dialog__version" v-if="kind === 'update'">
-        <span class="dialog__version-label">Your attempted change</span>
+        <span class="dialog__version-label">{{ $t('conflict.attempted') }}</span>
         <p class="dialog__version-title">{{ attemptedSummary }}</p>
       </div>
 
       <div class="dialog__actions">
         <button type="button" class="btn btn-ghost" @click="emit('discard')">
-          {{ serverVersion ? 'Discard my changes' : 'OK' }}
+          {{ serverVersion ? $t('conflict.discard') : $t('common.ok') }}
         </button>
         <button v-if="serverVersion" type="button" class="btn btn-primary" @click="emit('reapply')">
-          {{ kind === 'delete' ? 'Delete anyway' : 'Reapply my changes' }}
+          {{ kind === 'delete' ? $t('conflict.deleteAnyway') : $t('conflict.reapply') }}
         </button>
       </div>
     </div>

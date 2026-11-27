@@ -23,6 +23,7 @@ import {
   typeName,
   URL_TYPES,
 } from '../lib/labels.js'
+import { t } from '../i18n.js'
 import { ALL_BOOKS, UNGROUPED, useContactsStore } from '../stores/contacts.js'
 import { useSessionStore } from '../stores/session.js'
 import { useSettingsStore } from '../stores/settings.js'
@@ -149,7 +150,7 @@ const dateRe = /^(\d{4}-\d{2}-\d{2}|--\d{2}-\d{2})?$/
 const dateError = computed(() =>
   dateRe.test(form.birthday.trim()) && dateRe.test(form.anniversary.trim())
     ? null
-    : 'Dates must look like 1990-01-31, or --01-31 when the year is unknown.',
+    : t('contacts.dateFormat'),
 )
 const categorySuggestions = computed(() =>
   contactsStore.groups.map((g) => g.name).filter((g) => !form.categories.includes(g)),
@@ -189,14 +190,16 @@ function flash(text: string, error = false): void {
   statusTimer = setTimeout(() => (status.value = null), error ? 8000 : 4000)
 }
 
-function plural(n: number, noun: string): string {
-  return `${n} ${noun}${n === 1 ? '' : 's'}`
+function contactCount(n: number): string {
+  return t('contacts.count', { n }, n)
 }
 
+type BatchKind = 'moved' | 'copied' | 'added' | 'removed' | 'deleted'
+
 /** Summarises a batch result as a status line. */
-function report(verb: string, r: { done: number; failed: number }, extra = ''): void {
-  if (r.failed === 0) flash(`${verb} ${plural(r.done, 'contact')}${extra}`)
-  else flash(`${verb} ${r.done}, ${r.failed} failed${extra}`, true)
+function report(kind: BatchKind, r: { done: number; failed: number }, params: { book?: string; group?: string } = {}): void {
+  if (r.failed === 0) flash(t(`contacts.batch.${kind}`, { n: r.done, ...params }, r.done))
+  else flash(t(`contacts.batch.${kind}Partial`, { done: r.done, failed: r.failed, ...params }), true)
 }
 
 const selecting = computed(() => selectMode.value || contactsStore.checkedIds.length > 0)
@@ -262,14 +265,14 @@ async function guarded(fn: () => Promise<void>): Promise<void> {
   try {
     await fn()
   } catch (err) {
-    flash(err instanceof Error ? err.message : 'Something went wrong', true)
+    flash(err instanceof Error ? err.message : t('common.somethingWrong'), true)
   } finally {
     working.value = false
   }
 }
 
 function bookName(id: string): string {
-  return contactsStore.booksById.get(id)?.displayName ?? 'the address book'
+  return contactsStore.booksById.get(id)?.displayName ?? t('contacts.theBook')
 }
 
 function onTransfer(bookId: string, mode: 'move' | 'copy'): Promise<void> {
@@ -277,7 +280,7 @@ function onTransfer(bookId: string, mode: 'move' | 'copy'): Promise<void> {
   if (!c) return Promise.resolve()
   return guarded(async () => {
     await contactsStore.transferContact(c, bookId, mode)
-    flash(`${mode === 'move' ? 'Moved' : 'Copied'} ${c.fullName} to ${bookName(bookId)}`)
+    flash(t(mode === 'move' ? 'contacts.movedOne' : 'contacts.copiedOne', { name: c.fullName, book: bookName(bookId) }))
   })
 }
 
@@ -287,7 +290,7 @@ function onBatchTransfer(bookId: string, mode: 'move' | 'copy'): Promise<void> {
   return guarded(async () => {
     const r = await contactsStore.transferContacts(list, bookId, mode)
     contactsStore.clearChecked()
-    report(mode === 'move' ? 'Moved' : 'Copied', r, ` to ${bookName(bookId)}`)
+    report(mode === 'move' ? 'moved' : 'copied', r, { book: bookName(bookId) })
   })
 }
 
@@ -296,7 +299,7 @@ function onBatchGroup(change: { add: string } | { remove: string }): Promise<voi
   return guarded(async () => {
     const r = await contactsStore.setGroup(list, change)
     const name = 'add' in change ? change.add : change.remove
-    report('add' in change ? `Added to “${name}”:` : `Removed from “${name}”:`, r)
+    report('add' in change ? 'added' : 'removed', r, { group: name })
   })
 }
 
@@ -320,9 +323,9 @@ async function onMerge(survivor: Contact, other: Contact, input: ContactInput): 
     const merged = await contactsStore.mergeContacts(survivor, other, input)
     mergePair.value = null
     contactsStore.clearChecked()
-    flash(`Merged into ${merged.fullName}`)
+    flash(t('contacts.merged', { name: merged.fullName }))
   } catch (err) {
-    mergeError.value = err instanceof Error ? err.message : 'Could not merge these contacts'
+    mergeError.value = err instanceof Error ? err.message : t('contacts.mergeFailed')
   } finally {
     merging.value = false
   }
@@ -333,7 +336,7 @@ function onBatchDelete(): Promise<void> {
   confirmingBatchDelete.value = false
   return guarded(async () => {
     const r = await contactsStore.deleteContacts(list)
-    report('Deleted', r)
+    report('deleted', r)
   })
 }
 
@@ -377,9 +380,9 @@ function cancelEdit(): void {
 // Editing a type through the select keeps any extra tokens (e.g. 'voice') so
 // an untouched row round-trips as it was stored.
 function onType(v: LabeledValue | PostalAddress, known: readonly string[], e: Event): void {
-  const t = (e.target as HTMLSelectElement).value
+  const picked = (e.target as HTMLSelectElement).value
   const extra = v.types.filter((x) => !known.includes(x))
-  v.types = t ? [t, ...extra] : extra
+  v.types = picked ? [picked, ...extra] : extra
 }
 
 function addEmail(): void {
@@ -397,8 +400,8 @@ function addAddress(): void {
 
 function addCategory(name = newCategory.value): void {
   for (const part of name.split(',')) {
-    const t = part.trim()
-    if (t && !form.categories.includes(t)) form.categories.push(t)
+    const group = part.trim()
+    if (group && !form.categories.includes(group)) form.categories.push(group)
   }
   newCategory.value = ''
 }
@@ -412,7 +415,7 @@ async function onPhoto(e: Event): Promise<void> {
   try {
     photo.value = await imageToDataUri(file)
   } catch (err) {
-    photoError.value = err instanceof Error ? err.message : 'Could not use that image'
+    photoError.value = err instanceof Error ? err.message : t('contacts.imageFailed')
   }
 }
 
@@ -449,11 +452,11 @@ const conflictServerContact = ref<Contact | null>(null)
 const conflictServerVersion = computed(() => {
   const c = conflictServerContact.value
   if (!c) return null
-  return { title: c.fullName || '(No name)', detail: c.org || c.emails[0]?.value || c.phones[0]?.value || '' }
+  return { title: c.fullName || t('contacts.noName'), detail: c.org || c.emails[0]?.value || c.phones[0]?.value || '' }
 })
 
 function attemptedName(input: ContactInput): string {
-  return input.fullName || [input.name.given, input.name.family].filter(Boolean).join(' ') || '(No name)'
+  return input.fullName || [input.name.given, input.name.family].filter(Boolean).join(' ') || t('contacts.noName')
 }
 
 async function openConflict(conflict: PendingConflict): Promise<void> {
@@ -486,7 +489,7 @@ async function saveContact(): Promise<void> {
     }
     closeEditor()
   } catch (err) {
-    saveError.value = err instanceof ApiRequestError ? err.message : 'Could not save this contact'
+    saveError.value = err instanceof ApiRequestError ? err.message : t('contacts.saveFailed')
   } finally {
     saving.value = false
   }
@@ -503,7 +506,7 @@ async function onDeleteContact(): Promise<void> {
       await openConflict({ kind: 'delete', contact })
       return
     }
-    contactsStore.error = err instanceof ApiRequestError ? err.message : 'Could not delete this contact'
+    contactsStore.error = err instanceof ApiRequestError ? err.message : t('contacts.deleteFailed')
   }
 }
 
@@ -537,7 +540,7 @@ async function onConflictReapply(): Promise<void> {
       await openConflict({ kind: 'update', contact: fresh, input: conflict.input })
       return
     }
-    saveError.value = err instanceof ApiRequestError ? err.message : 'Could not save this contact'
+    saveError.value = err instanceof ApiRequestError ? err.message : t('contacts.saveFailed')
   } finally {
     saving.value = false
   }
@@ -551,7 +554,7 @@ async function onRetryDelete(contact: Contact): Promise<void> {
       await openConflict({ kind: 'delete', contact })
       return
     }
-    contactsStore.error = err instanceof ApiRequestError ? err.message : 'Could not delete this contact'
+    contactsStore.error = err instanceof ApiRequestError ? err.message : t('contacts.deleteFailed')
   }
 }
 
@@ -576,7 +579,7 @@ async function createBook(): Promise<void> {
     showNewBookForm.value = false
     closeEditor()
   } catch (err) {
-    bookError.value = err instanceof ApiRequestError ? err.message : 'Could not create the address book'
+    bookError.value = err instanceof ApiRequestError ? err.message : t('contacts.bookCreateFailed')
   }
 }
 
@@ -588,7 +591,7 @@ async function onDeleteBook(): Promise<void> {
     await contactsStore.deleteAddressBook(id)
     closeEditor()
   } catch (err) {
-    bookError.value = err instanceof ApiRequestError ? err.message : 'Could not delete the address book'
+    bookError.value = err instanceof ApiRequestError ? err.message : t('contacts.bookDeleteFailed')
   }
 }
 
@@ -643,9 +646,9 @@ async function submitRename(): Promise<void> {
   savingGroup.value = { from, to }
   try {
     const failed = await contactsStore.renameGroup(from, to)
-    if (failed > 0) bookError.value = `${failed} contact${failed === 1 ? '' : 's'} could not be updated`
+    if (failed > 0) bookError.value = t('contacts.renameFailed', { n: failed }, failed)
   } catch (err) {
-    bookError.value = err instanceof ApiRequestError ? err.message : 'Could not rename the group'
+    bookError.value = err instanceof ApiRequestError ? err.message : t('contacts.groupRenameFailed')
   } finally {
     isRenaming = false
     if (savingGroup.value?.from === from) {
@@ -663,10 +666,10 @@ async function onImport(e: Event): Promise<void> {
   importMessage.value = null
   try {
     const result = await api.importVcf(bookId, await file.text())
-    importMessage.value = `Imported ${result.imported}, skipped ${result.skipped}`
+    importMessage.value = t('contacts.importResult', { imported: result.imported, skipped: result.skipped })
     await contactsStore.loadContacts(bookId, true)
   } catch (err) {
-    importMessage.value = err instanceof ApiRequestError ? err.message : 'Import failed'
+    importMessage.value = err instanceof ApiRequestError ? err.message : t('contacts.importFailed')
   }
 }
 
@@ -702,8 +705,7 @@ function safeHref(u: string): string | null {
 }
 
 const contactCountLabel = computed(() => {
-  const count = contactsStore.filteredContacts.length
-  return count === 1 ? '1 contact' : `${count} contacts`
+  return contactCount(contactsStore.filteredContacts.length)
 })
 </script>
 
@@ -717,34 +719,34 @@ const contactCountLabel = computed(() => {
         <button
           class="btn btn-primary sidebar__new"
           :disabled="!canCreate"
-          :title="canCreate ? 'Create a new contact' : 'This address book is read-only'"
+          :title="canCreate ? $t('contacts.createTitle') : $t('contacts.bookReadOnly')"
           @click="startCreate"
         >
-          <span aria-hidden="true">+</span> New Contact
+          <span aria-hidden="true">+</span> {{ $t('contacts.newContact') }}
         </button>
       </div>
 
       <div v-if="contactsStore.activeBook" class="sidebar__io">
         <button type="button" class="btn btn-ghost btn-sm" :disabled="activeReadOnly" @click="importInput?.click()">
-          Import .vcf
+          {{ $t('contacts.importVcf') }}
         </button>
-        <a class="btn btn-ghost btn-sm" :href="api.exportUrl(contactsStore.activeBook.id)" download>Export</a>
+        <a class="btn btn-ghost btn-sm" :href="api.exportUrl(contactsStore.activeBook.id)" download>{{ $t('common.export') }}</a>
         <button
           type="button"
           class="btn btn-ghost btn-sm"
           :aria-pressed="showUrl"
-          title="Show this address book's CardDAV URL"
+          :title="$t('contacts.urlTitle')"
           @click="showUrl = !showUrl"
         >
-          URL
+          {{ $t('contacts.url') }}
         </button>
         <input ref="importInput" type="file" accept=".vcf,text/vcard" hidden @change="onImport" />
       </div>
       <p v-else-if="contactsStore.isAllBooks" class="sidebar__note">
-        Pick one address book to import into or export from it.
+        {{ $t('contacts.pickBook') }}
       </p>
       <div v-if="showUrl && contactsStore.activeBook" class="sidebar__url">
-        <label for="carddav-url">CardDAV URL — use this to add the address book in a phone or Thunderbird</label>
+        <label for="carddav-url">{{ $t('contacts.carddavUrl') }}</label>
         <div class="sidebar__url-row">
           <input
             id="carddav-url"
@@ -756,7 +758,7 @@ const contactCountLabel = computed(() => {
             @focus="($event.target as HTMLInputElement).select()"
           />
           <button type="button" class="btn btn-secondary btn-sm" @click="copyUrl">
-            {{ urlCopied ? 'Copied' : 'Copy' }}
+            {{ urlCopied ? $t('contacts.copied') : $t('contacts.copy') }}
           </button>
         </div>
       </div>
@@ -765,8 +767,8 @@ const contactCountLabel = computed(() => {
       <!-- Address Books Section (Mirrors CalendarList.vue) -->
       <div class="address-books">
         <div class="address-books__header">
-          <h2 class="address-books__heading">Address Books</h2>
-          <button type="button" class="icon-add-btn" title="New address book" @click="toggleNewBookForm">+</button>
+          <h2 class="address-books__heading">{{ $t('contacts.books') }}</h2>
+          <button type="button" class="icon-add-btn" :title="$t('contacts.newBook')" @click="toggleNewBookForm">+</button>
         </div>
 
         <form
@@ -779,12 +781,12 @@ const contactCountLabel = computed(() => {
             ref="newBookInput"
             v-model="newBookName"
             type="text"
-            placeholder="Address book name"
+            :placeholder="$t('contacts.bookNamePlaceholder')"
             class="address-books__new-input"
           />
           <div class="address-books__new-row">
-            <button type="button" class="btn btn-ghost btn-sm" @click="showNewBookForm = false">Cancel</button>
-            <button type="submit" class="btn btn-primary btn-sm" :disabled="!newBookName.trim()">Save</button>
+            <button type="button" class="btn btn-ghost btn-sm" @click="showNewBookForm = false">{{ $t('common.cancel') }}</button>
+            <button type="submit" class="btn btn-primary btn-sm" :disabled="!newBookName.trim()">{{ $t('common.save') }}</button>
           </div>
         </form>
 
@@ -796,7 +798,7 @@ const contactCountLabel = computed(() => {
             @click="pickBook(ALL_BOOKS)"
           >
             <span class="address-books__icon" aria-hidden="true">📚</span>
-            <span class="address-books__name">All address books</span>
+            <span class="address-books__name">{{ $t('contacts.allBooks') }}</span>
           </li>
           <li
             v-for="book in contactsStore.addressBooks"
@@ -811,7 +813,7 @@ const contactCountLabel = computed(() => {
               v-if="contactsStore.addressBooks.length > 1 && !book.readOnly"
               type="button"
               class="icon-remove-btn address-books__delete"
-              title="Delete address book"
+              :title="$t('contacts.deleteBook')"
               @click.stop="confirmingDeleteBook = book.id"
             >
               ×
@@ -824,7 +826,7 @@ const contactCountLabel = computed(() => {
       <!-- Groups (vCard CATEGORIES) of the active address book -->
       <div v-if="contactsStore.groups.length > 0" class="address-books">
         <div class="address-books__header">
-          <h2 class="address-books__heading">Groups</h2>
+          <h2 class="address-books__heading">{{ $t('contact.groups') }}</h2>
         </div>
         <ul class="address-books__list">
           <li
@@ -832,7 +834,7 @@ const contactCountLabel = computed(() => {
             :class="{ 'address-books__item--active': contactsStore.selectedGroup === null }"
             @click="contactsStore.selectedGroup = null"
           >
-            <span class="address-books__name">All contacts</span>
+            <span class="address-books__name">{{ $t('contacts.allContacts') }}</span>
             <span class="address-books__count">{{ contactsStore.contacts.length }}</span>
           </li>
           <li
@@ -859,7 +861,7 @@ const contactCountLabel = computed(() => {
                 v-model="renameValue"
                 type="text"
                 class="address-books__new-input"
-                aria-label="Group name"
+                :aria-label="$t('contacts.groupName')"
                 @blur="onRenameBlur"
               />
             </form>
@@ -875,8 +877,8 @@ const contactCountLabel = computed(() => {
                   v-if="savingGroup?.from === g.name"
                   class="address-books__spinner"
                   role="status"
-                  aria-label="Saving group name…"
-                  title="Saving…"
+                  :aria-label="$t('contacts.savingGroup')"
+                  :title="$t('common.saving')"
                 ></span>
                 <template v-else>
                   <span class="address-books__count">{{ g.count }}</span>
@@ -884,8 +886,8 @@ const contactCountLabel = computed(() => {
                     v-if="!activeReadOnly"
                     type="button"
                     class="address-books__edit"
-                    title="Rename group"
-                    aria-label="Rename group"
+                    :title="$t('contacts.renameGroup')"
+                    :aria-label="$t('contacts.renameGroup')"
                     @click.stop="startRename(g.name)"
                   >
                     ✎
@@ -900,7 +902,7 @@ const contactCountLabel = computed(() => {
             :class="{ 'address-books__item--active': contactsStore.selectedGroup === UNGROUPED }"
             @click="contactsStore.selectedGroup = UNGROUPED"
           >
-            <span class="address-books__name">Not grouped</span>
+            <span class="address-books__name">{{ $t('contacts.ungrouped') }}</span>
             <span class="address-books__count">{{ contactsStore.ungroupedCount }}</span>
           </li>
         </ul>
@@ -916,12 +918,12 @@ const contactCountLabel = computed(() => {
           <button
             type="button"
             class="btn btn-ghost sidebar__settings-btn"
-            title="Settings"
+            :title="$t('settings.title')"
             @click="showSettingsDialog = true"
           >
-            <span aria-hidden="true">⚙️</span> Settings
+            <span aria-hidden="true">⚙️</span> {{ $t('settings.title') }}
           </button>
-          <button class="btn btn-ghost sidebar__signout" @click="onLogout">Sign out</button>
+          <button class="btn btn-ghost sidebar__signout" @click="onLogout">{{ $t('common.signOut') }}</button>
         </div>
       </div>
     </aside>
@@ -941,7 +943,7 @@ const contactCountLabel = computed(() => {
                 v-model="contactsStore.searchQuery"
                 type="text"
                 class="search-input"
-                placeholder="Search contacts..."
+                :placeholder="$t('contacts.searchPlaceholder')"
               />
             </div>
             <div class="contacts-list-header__row">
@@ -950,24 +952,24 @@ const contactCountLabel = computed(() => {
                 type="button"
                 class="btn-text"
                 :aria-pressed="selectMode"
-                title="Tick contacts to move, copy, group, merge or delete several at once"
+                :title="$t('contacts.selectTitle')"
                 @click="selectMode ? clearSelection() : (selectMode = true)"
               >
-                {{ selecting ? 'Done' : 'Select' }}
+                {{ selecting ? $t('common.done') : $t('contacts.select') }}
               </button>
             </div>
           </div>
 
           <div v-if="contactsStore.checkedIds.length > 0" class="batch-bar">
             <div class="batch-bar__top">
-              <strong>{{ contactsStore.checkedIds.length }} selected</strong>
+              <strong>{{ $t('contacts.selected', { n: contactsStore.checkedIds.length }, contactsStore.checkedIds.length) }}</strong>
               <button type="button" class="btn-text" @click="toggleSelectAll">
-                {{ allChecked ? 'Select none' : 'Select all' }}
+                {{ allChecked ? $t('contacts.selectNone') : $t('contacts.selectAll') }}
               </button>
             </div>
             <div class="batch-bar__actions">
               <BookMenu
-                label="Move / copy"
+                :label="$t('contacts.moveCopy')"
                 :move-targets="batchMoveTargets"
                 :copy-targets="batchCopyTargets"
                 @pick="onBatchTransfer"
@@ -984,19 +986,19 @@ const contactCountLabel = computed(() => {
                 type="button"
                 class="btn btn-secondary btn-sm"
                 :disabled="!canMerge || working"
-                :title="canMerge ? 'Combine these two contacts into one' : 'Some are in a read-only address book'"
+                :title="canMerge ? $t('contacts.mergeTitle') : $t('contacts.someReadOnly')"
                 @click="startMerge"
               >
-                Merge
+                {{ $t('contacts.merge') }}
               </button>
               <button
                 type="button"
                 class="btn btn-danger btn-sm"
                 :disabled="!checkedWritable || working"
-                :title="checkedWritable ? 'Delete the selected contacts' : 'Some are in a read-only address book'"
+                :title="checkedWritable ? $t('contacts.deleteSelected') : $t('contacts.someReadOnly')"
                 @click="confirmingBatchDelete = true"
               >
-                Delete
+                {{ $t('common.delete') }}
               </button>
             </div>
           </div>
@@ -1005,10 +1007,10 @@ const contactCountLabel = computed(() => {
           </p>
 
           <div v-if="contactsStore.error" class="pane-state pane-state--error">{{ contactsStore.error }}</div>
-          <div v-else-if="contactsStore.loading && contactsStore.contacts.length === 0" class="pane-state">Loading contacts...</div>
+          <div v-else-if="contactsStore.loading && contactsStore.contacts.length === 0" class="pane-state">{{ $t('contacts.loading') }}</div>
           <div v-else-if="contactsStore.filteredContacts.length === 0" class="pane-state">
-            <p v-if="contactsStore.searchQuery">No contacts match your search.</p>
-            <p v-else>No contacts in this address book.</p>
+            <p v-if="contactsStore.searchQuery">{{ $t('contacts.noMatch') }}</p>
+            <p v-else>{{ $t('contacts.emptyBook') }}</p>
           </div>
           <ul v-else class="contact-items">
             <li
@@ -1027,7 +1029,7 @@ const contactCountLabel = computed(() => {
                   type="checkbox"
                   class="contact-item__check"
                   :checked="contactsStore.checkedIds.includes(contact.id)"
-                  :aria-label="`Select ${contact.fullName}`"
+                  :aria-label="$t('contacts.selectOne', { name: contact.fullName })"
                   @click.stop="onCheck($event, contact)"
                 />
               </div>
@@ -1050,16 +1052,16 @@ const contactCountLabel = computed(() => {
           <div v-if="editing" class="detail-card edit-card">
             <div class="edit-card__header">
               <div class="edit-card__header-main">
-                <h2>{{ isCreating ? 'New Contact' : 'Edit Contact' }}</h2>
+                <h2>{{ isCreating ? $t('contacts.newContact') : $t('contacts.editTitle') }}</h2>
                 <div class="edit-card__actions">
-                  <button type="button" class="btn btn-ghost" :disabled="saving" @click="cancelEdit">Cancel</button>
+                  <button type="button" class="btn btn-ghost" :disabled="saving" @click="cancelEdit">{{ $t('common.cancel') }}</button>
                   <button
                     type="button"
                     class="btn btn-primary"
                     :disabled="saving || nameMissing || !!dateError"
                     @click="saveContact"
                   >
-                    {{ saving ? 'Saving…' : 'Save' }}
+                    {{ saving ? $t('common.saving') : $t('common.save') }}
                   </button>
                 </div>
               </div>
@@ -1068,7 +1070,7 @@ const contactCountLabel = computed(() => {
 
             <form class="edit-form" @submit.prevent="saveContact">
               <div v-if="isCreating && contactsStore.writableBooks.length > 1" class="form-group">
-                <label for="new-contact-book">Address book</label>
+                <label for="new-contact-book">{{ $t('contacts.book') }}</label>
                 <select id="new-contact-book" v-model="createBookId" class="select">
                   <option v-for="b in contactsStore.writableBooks" :key="b.id" :value="b.id">{{ b.displayName }}</option>
                 </select>
@@ -1077,81 +1079,81 @@ const contactCountLabel = computed(() => {
               <div class="photo-row">
                 <ContactAvatar class="photo-row__avatar" :contact="previewContact" :preview-src="previewSrc" />
                 <label class="btn btn-secondary btn-sm">
-                  Choose photo
+                  {{ $t('contacts.choosePhoto') }}
                   <input type="file" accept="image/*" hidden @change="onPhoto" />
                 </label>
                 <button v-if="showRemovePhoto" type="button" class="btn btn-ghost btn-sm" @click="photo = null">
-                  Remove
+                  {{ $t('common.remove') }}
                 </button>
                 <span v-if="photoError" class="edit-form__error">{{ photoError }}</span>
               </div>
 
               <div class="form-row">
                 <div class="form-group flex-1">
-                  <label>First Name</label>
-                  <input v-model="form.name.given" type="text" class="input" placeholder="First name" />
+                  <label>{{ $t('contacts.firstName') }}</label>
+                  <input v-model="form.name.given" type="text" class="input" :placeholder="$t('contacts.firstNamePh')" />
                 </div>
                 <div class="form-group flex-1">
-                  <label>Last Name</label>
-                  <input v-model="form.name.family" type="text" class="input" placeholder="Last name" />
-                </div>
-              </div>
-
-              <div class="form-row">
-                <div class="form-group flex-1">
-                  <label>Prefix</label>
-                  <input v-model="form.name.prefix" type="text" class="input" placeholder="Dr." />
-                </div>
-                <div class="form-group flex-1">
-                  <label>Middle</label>
-                  <input v-model="form.name.additional" type="text" class="input" placeholder="Middle name" />
-                </div>
-                <div class="form-group flex-1">
-                  <label>Suffix</label>
-                  <input v-model="form.name.suffix" type="text" class="input" placeholder="Jr." />
+                  <label>{{ $t('contacts.lastName') }}</label>
+                  <input v-model="form.name.family" type="text" class="input" :placeholder="$t('contacts.lastNamePh')" />
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group flex-1">
-                  <label>Nickname</label>
-                  <input v-model="form.nickname" type="text" class="input" placeholder="Nickname" />
+                  <label>{{ $t('contacts.prefix') }}</label>
+                  <input v-model="form.name.prefix" type="text" class="input" :placeholder="$t('contacts.prefixPh')" />
                 </div>
                 <div class="form-group flex-1">
-                  <label>Full Display Name (optional)</label>
-                  <input v-model="form.fullName" type="text" class="input" placeholder="Leave empty to auto-generate" />
+                  <label>{{ $t('contacts.middle') }}</label>
+                  <input v-model="form.name.additional" type="text" class="input" :placeholder="$t('contacts.middlePh')" />
+                </div>
+                <div class="form-group flex-1">
+                  <label>{{ $t('contacts.suffix') }}</label>
+                  <input v-model="form.name.suffix" type="text" class="input" :placeholder="$t('contacts.suffixPh')" />
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group flex-1">
-                  <label>Organization</label>
-                  <input v-model="form.org" type="text" class="input" placeholder="Company or Org" />
+                  <label>{{ $t('contact.nickname') }}</label>
+                  <input v-model="form.nickname" type="text" class="input" :placeholder="$t('contacts.nicknamePh')" />
                 </div>
                 <div class="form-group flex-1">
-                  <label>Job Title</label>
-                  <input v-model="form.title" type="text" class="input" placeholder="Title" />
+                  <label>{{ $t('contacts.fullName') }}</label>
+                  <input v-model="form.fullName" type="text" class="input" :placeholder="$t('contacts.fullNamePh')" />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label>{{ $t('contact.org') }}</label>
+                  <input v-model="form.org" type="text" class="input" :placeholder="$t('contacts.orgPh')" />
+                </div>
+                <div class="form-group flex-1">
+                  <label>{{ $t('contacts.jobTitle') }}</label>
+                  <input v-model="form.title" type="text" class="input" :placeholder="$t('contacts.jobTitlePh')" />
                 </div>
               </div>
 
               <!-- Email Rows -->
               <div class="form-section">
                 <div class="form-section__header">
-                  <label>Email Addresses</label>
-                  <button type="button" class="btn-text" @click="addEmail">+ Add Email</button>
+                  <label>{{ $t('contacts.emailAddresses') }}</label>
+                  <button type="button" class="btn-text" @click="addEmail">{{ $t('contacts.addEmail') }}</button>
                 </div>
                 <div v-for="(em, idx) in form.emails" :key="idx" class="multi-row">
                   <select
                     :value="primaryType(em.types, EMAIL_TYPES)"
                     class="select select-sm"
-                    aria-label="Email type"
+                    :aria-label="$t('contacts.emailType')"
                     @change="onType(em, EMAIL_TYPES, $event)"
                   >
-                    <option value="">Other</option>
+                    <option value="">{{ $t('contacts.otherType') }}</option>
                     <option v-for="t in EMAIL_TYPES" :key="t" :value="t">{{ typeName(t) }}</option>
                   </select>
-                  <input v-model="em.value" type="email" class="input flex-1" placeholder="email@example.com" />
-                  <button type="button" class="icon-remove-btn" aria-label="Remove email" @click="form.emails.splice(idx, 1)">
+                  <input v-model="em.value" type="email" class="input flex-1" :placeholder="$t('contacts.emailPh')" />
+                  <button type="button" class="icon-remove-btn" :aria-label="$t('contacts.removeEmail')" @click="form.emails.splice(idx, 1)">
                     ×
                   </button>
                 </div>
@@ -1160,21 +1162,21 @@ const contactCountLabel = computed(() => {
               <!-- Phone Rows -->
               <div class="form-section">
                 <div class="form-section__header">
-                  <label>Phone Numbers</label>
-                  <button type="button" class="btn-text" @click="addPhone">+ Add Phone</button>
+                  <label>{{ $t('contacts.phoneNumbers') }}</label>
+                  <button type="button" class="btn-text" @click="addPhone">{{ $t('contacts.addPhone') }}</button>
                 </div>
                 <div v-for="(ph, idx) in form.phones" :key="idx" class="multi-row">
                   <select
                     :value="primaryType(ph.types, PHONE_TYPES)"
                     class="select select-sm"
-                    aria-label="Phone type"
+                    :aria-label="$t('contacts.phoneType')"
                     @change="onType(ph, PHONE_TYPES, $event)"
                   >
-                    <option value="">Other</option>
+                    <option value="">{{ $t('contacts.otherType') }}</option>
                     <option v-for="t in PHONE_TYPES" :key="t" :value="t">{{ typeName(t) }}</option>
                   </select>
-                  <input v-model="ph.value" type="tel" class="input flex-1" placeholder="+1 (555) 000-0000" />
-                  <button type="button" class="icon-remove-btn" aria-label="Remove phone" @click="form.phones.splice(idx, 1)">
+                  <input v-model="ph.value" type="tel" class="input flex-1" :placeholder="$t('contacts.phonePh')" />
+                  <button type="button" class="icon-remove-btn" :aria-label="$t('contacts.removePhone')" @click="form.phones.splice(idx, 1)">
                     ×
                   </button>
                 </div>
@@ -1183,21 +1185,21 @@ const contactCountLabel = computed(() => {
               <!-- Website Rows -->
               <div class="form-section">
                 <div class="form-section__header">
-                  <label>Websites</label>
-                  <button type="button" class="btn-text" @click="addUrl">+ Add Website</button>
+                  <label>{{ $t('contacts.websites') }}</label>
+                  <button type="button" class="btn-text" @click="addUrl">{{ $t('contacts.addUrl') }}</button>
                 </div>
                 <div v-for="(u, idx) in form.urls" :key="idx" class="multi-row">
                   <select
                     :value="primaryType(u.types, URL_TYPES)"
                     class="select select-sm"
-                    aria-label="Website type"
+                    :aria-label="$t('contacts.urlType')"
                     @change="onType(u, URL_TYPES, $event)"
                   >
-                    <option value="">Other</option>
+                    <option value="">{{ $t('contacts.otherType') }}</option>
                     <option v-for="t in URL_TYPES" :key="t" :value="t">{{ typeName(t) }}</option>
                   </select>
                   <input v-model="u.value" type="text" class="input flex-1" placeholder="https://example.com" />
-                  <button type="button" class="icon-remove-btn" aria-label="Remove website" @click="form.urls.splice(idx, 1)">
+                  <button type="button" class="icon-remove-btn" :aria-label="$t('contacts.removeUrl')" @click="form.urls.splice(idx, 1)">
                     ×
                   </button>
                 </div>
@@ -1206,47 +1208,47 @@ const contactCountLabel = computed(() => {
               <!-- Address Rows -->
               <div class="form-section">
                 <div class="form-section__header">
-                  <label>Postal Addresses</label>
-                  <button type="button" class="btn-text" @click="addAddress">+ Add Address</button>
+                  <label>{{ $t('contacts.postalAddresses') }}</label>
+                  <button type="button" class="btn-text" @click="addAddress">{{ $t('contacts.addAddress') }}</button>
                 </div>
                 <div v-for="(ad, idx) in form.addresses" :key="idx" class="address-box">
                   <div class="address-box__header">
                     <select
                       :value="primaryType(ad.types, ADDRESS_TYPES)"
                       class="select select-sm"
-                      aria-label="Address type"
+                      :aria-label="$t('contacts.addressType')"
                       @change="onType(ad, ADDRESS_TYPES, $event)"
                     >
-                      <option value="">Other</option>
+                      <option value="">{{ $t('contacts.otherType') }}</option>
                       <option v-for="t in ADDRESS_TYPES" :key="t" :value="t">{{ typeName(t) }}</option>
                     </select>
-                    <button type="button" class="icon-remove-btn" aria-label="Remove address" @click="form.addresses.splice(idx, 1)">
+                    <button type="button" class="icon-remove-btn" :aria-label="$t('contacts.removeAddress')" @click="form.addresses.splice(idx, 1)">
                       ×
                     </button>
                   </div>
-                  <input v-model="ad.street" type="text" class="input" placeholder="Street Address" />
-                  <input v-model="ad.extended" type="text" class="input" placeholder="Apt, suite, unit (line 2)" />
+                  <input v-model="ad.street" type="text" class="input" :placeholder="$t('contacts.street')" />
+                  <input v-model="ad.extended" type="text" class="input" :placeholder="$t('contacts.extended')" />
                   <div v-if="settings.addressFormat === 'us'" class="form-row">
-                    <input v-model="ad.locality" type="text" class="input flex-1" placeholder="City" />
-                    <input v-model="ad.region" type="text" class="input flex-1" placeholder="State" />
-                    <input v-model="ad.postalCode" type="text" class="input flex-1" placeholder="ZIP code" />
+                    <input v-model="ad.locality" type="text" class="input flex-1" :placeholder="$t('contacts.city')" />
+                    <input v-model="ad.region" type="text" class="input flex-1" :placeholder="$t('contacts.state')" />
+                    <input v-model="ad.postalCode" type="text" class="input flex-1" :placeholder="$t('contacts.zip')" />
                   </div>
                   <div v-else class="form-row">
-                    <input v-model="ad.postalCode" type="text" class="input flex-1" placeholder="Postal code" />
-                    <input v-model="ad.locality" type="text" class="input flex-1" placeholder="City" />
-                    <input v-model="ad.region" type="text" class="input flex-1" placeholder="State / region" />
+                    <input v-model="ad.postalCode" type="text" class="input flex-1" :placeholder="$t('contacts.postalCode')" />
+                    <input v-model="ad.locality" type="text" class="input flex-1" :placeholder="$t('contacts.city')" />
+                    <input v-model="ad.region" type="text" class="input flex-1" :placeholder="$t('contacts.region')" />
                   </div>
-                  <input v-model="ad.country" type="text" class="input" placeholder="Country" />
+                  <input v-model="ad.country" type="text" class="input" :placeholder="$t('common.country')" />
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group flex-1">
-                  <label>Birthday</label>
-                  <input v-model="form.birthday" type="text" class="input" placeholder="1990-01-31 or --01-31" />
+                  <label>{{ $t('contact.birthday') }}</label>
+                  <input v-model="form.birthday" type="text" class="input" :placeholder="$t('contacts.birthdayPh')" />
                 </div>
                 <div class="form-group flex-1">
-                  <label>Anniversary</label>
+                  <label>{{ $t('contact.anniversary') }}</label>
                   <input v-model="form.anniversary" type="text" class="input" placeholder="2015-06-20" />
                 </div>
               </div>
@@ -1255,14 +1257,14 @@ const contactCountLabel = computed(() => {
               <!-- Groups -->
               <div class="form-section">
                 <div class="form-section__header">
-                  <label>Groups</label>
+                  <label>{{ $t('contact.groups') }}</label>
                 </div>
                 <div v-if="form.categories.length" class="chips">
                   <span v-for="g in form.categories" :key="g" class="chip">
                     {{ g }}
                     <button
                       type="button"
-                      aria-label="Remove group"
+                      :aria-label="$t('contacts.removeGroup')"
                       @click="form.categories.splice(form.categories.indexOf(g), 1)"
                     >
                       ×
@@ -1274,7 +1276,7 @@ const contactCountLabel = computed(() => {
                   type="text"
                   class="input"
                   list="group-suggestions"
-                  placeholder="Add to group…"
+                  :placeholder="$t('contacts.addToGroupPh')"
                   @keydown.enter.prevent="addCategory()"
                   @change="addCategory()"
                 />
@@ -1284,8 +1286,8 @@ const contactCountLabel = computed(() => {
               </div>
 
               <div class="form-group">
-                <label>Notes</label>
-                <textarea v-model="form.notes" class="input textarea" rows="3" placeholder="Notes..."></textarea>
+                <label>{{ $t('contact.notes') }}</label>
+                <textarea v-model="form.notes" class="input textarea" rows="3" :placeholder="$t('contacts.notesPh')"></textarea>
               </div>
             </form>
           </div>
@@ -1308,14 +1310,14 @@ const contactCountLabel = computed(() => {
               </div>
               <div class="detail-actions">
                 <template v-if="!selectedReadOnly">
-                  <button type="button" class="btn btn-secondary" @click="startEdit">Edit</button>
+                  <button type="button" class="btn btn-secondary" @click="startEdit">{{ $t('common.edit') }}</button>
                   <button type="button" class="btn btn-danger" @click="confirmingDelete = contactsStore.selectedContact">
-                    Delete
+                    {{ $t('common.delete') }}
                   </button>
                 </template>
                 <BookMenu
                   v-if="detailMoveTargets.length || detailCopyTargets.length"
-                  label="Move / copy"
+                  :label="$t('contacts.moveCopy')"
                   :move-targets="detailMoveTargets"
                   :copy-targets="detailCopyTargets"
                   @pick="onTransfer"
@@ -1326,7 +1328,7 @@ const contactCountLabel = computed(() => {
             <div class="detail-body">
               <!-- Phones -->
               <div v-if="contactsStore.selectedContact.phones.length > 0" class="detail-group">
-                <span class="detail-label">Phone</span>
+                <span class="detail-label">{{ $t('contacts.phone') }}</span>
                 <div v-for="(ph, i) in contactsStore.selectedContact.phones" :key="i" class="detail-entry">
                   <a :href="`tel:${ph.value.replace(/[^\d+*#]/g, '')}`" class="detail-link">{{ ph.value }}</a>
                   <span v-if="typeLabel(ph.types)" class="badge">{{ typeLabel(ph.types) }}</span>
@@ -1335,7 +1337,7 @@ const contactCountLabel = computed(() => {
 
               <!-- Emails -->
               <div v-if="contactsStore.selectedContact.emails.length > 0" class="detail-group">
-                <span class="detail-label">Email</span>
+                <span class="detail-label">{{ $t('contacts.email') }}</span>
                 <div v-for="(em, i) in contactsStore.selectedContact.emails" :key="i" class="detail-entry">
                   <a :href="`mailto:${em.value}`" class="detail-link">{{ em.value }}</a>
                   <span v-if="typeLabel(em.types)" class="badge">{{ typeLabel(em.types) }}</span>
@@ -1344,7 +1346,7 @@ const contactCountLabel = computed(() => {
 
               <!-- Websites -->
               <div v-if="contactsStore.selectedContact.urls.length > 0" class="detail-group">
-                <span class="detail-label">Website</span>
+                <span class="detail-label">{{ $t('contacts.website') }}</span>
                 <div v-for="(u, i) in contactsStore.selectedContact.urls" :key="i" class="detail-entry">
                   <a
                     v-if="safeHref(u.value)"
@@ -1362,7 +1364,7 @@ const contactCountLabel = computed(() => {
 
               <!-- Addresses -->
               <div v-if="contactsStore.selectedContact.addresses.length > 0" class="detail-group">
-                <span class="detail-label">Address</span>
+                <span class="detail-label">{{ $t('contacts.address') }}</span>
                 <div v-for="(ad, i) in contactsStore.selectedContact.addresses" :key="i" class="detail-address">
                   <span v-if="typeLabel(ad.types)" class="badge mb-1">{{ typeLabel(ad.types) }}</span>
                   <a :href="mapUrl(ad)" target="_blank" rel="noopener noreferrer" class="detail-link">
@@ -1373,23 +1375,23 @@ const contactCountLabel = computed(() => {
 
               <!-- Birthday / Anniversary -->
               <div v-if="contactsStore.selectedContact.birthday" class="detail-group">
-                <span class="detail-label">Birthday</span>
+                <span class="detail-label">{{ $t('contact.birthday') }}</span>
                 <div class="detail-entry">{{ formatDate(contactsStore.selectedContact.birthday) }}</div>
               </div>
               <div v-if="contactsStore.selectedContact.anniversary" class="detail-group">
-                <span class="detail-label">Anniversary</span>
+                <span class="detail-label">{{ $t('contact.anniversary') }}</span>
                 <div class="detail-entry">{{ formatDate(contactsStore.selectedContact.anniversary) }}</div>
               </div>
 
               <!-- Notes -->
               <div v-if="contactsStore.selectedContact.notes" class="detail-group">
-                <span class="detail-label">Notes</span>
+                <span class="detail-label">{{ $t('contact.notes') }}</span>
                 <div class="detail-notes">{{ contactsStore.selectedContact.notes }}</div>
               </div>
 
               <p class="detail-foot">
                 {{ contactsStore.bookOf(contactsStore.selectedContact)?.displayName }}<template v-if="selectedReadOnly">
-                  · read-only</template
+                  · {{ $t('contacts.readOnly') }}</template
                 >
                 · vCard
                 {{ contactsStore.selectedContact.version }}
@@ -1406,9 +1408,9 @@ const contactCountLabel = computed(() => {
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
                 <path d="M16 3.13a4 4 0 0 1 0 7.75" />
               </svg>
-              <h3>No contact selected</h3>
-              <p>Select a contact from the list or create a new one.</p>
-              <button v-if="canCreate" class="btn btn-primary mt-3" @click="startCreate">+ New Contact</button>
+              <h3>{{ $t('contacts.noneSelected') }}</h3>
+              <p>{{ $t('contacts.noneSelectedHint') }}</p>
+              <button v-if="canCreate" class="btn btn-primary mt-3" @click="startCreate">+ {{ $t('contacts.newContact') }}</button>
             </div>
           </div>
         </section>
@@ -1430,9 +1432,9 @@ const contactCountLabel = computed(() => {
 
     <ConfirmDialog
       v-if="confirmingDelete"
-      title="Delete Contact"
-      :message="`Are you sure you want to delete ${confirmingDelete.fullName}?`"
-      confirm-label="Delete"
+      :title="$t('contacts.confirmDeleteTitle')"
+      :message="$t('contacts.confirmDelete', { name: confirmingDelete.fullName })"
+      :confirm-label="$t('common.delete')"
       @confirm="onDeleteContact"
       @cancel="confirmingDelete = null"
     />
@@ -1449,18 +1451,18 @@ const contactCountLabel = computed(() => {
 
     <ConfirmDialog
       v-if="confirmingBatchDelete"
-      title="Delete Contacts"
-      :message="`Are you sure you want to delete ${plural(contactsStore.checkedIds.length, 'contact')}? This can't be undone.`"
-      confirm-label="Delete"
+      :title="$t('contacts.confirmDeleteManyTitle')"
+      :message="$t('contacts.confirmDeleteMany', { count: contactCount(contactsStore.checkedIds.length) })"
+      :confirm-label="$t('common.delete')"
       @confirm="onBatchDelete"
       @cancel="confirmingBatchDelete = false"
     />
 
     <ConfirmDialog
       v-if="confirmingDeleteBook"
-      title="Delete Address Book"
-      message="Are you sure you want to delete this address book and all of its contacts?"
-      confirm-label="Delete"
+      :title="$t('contacts.confirmDeleteBookTitle')"
+      :message="$t('contacts.confirmDeleteBook')"
+      :confirm-label="$t('common.delete')"
       @confirm="onDeleteBook"
       @cancel="confirmingDeleteBook = null"
     />

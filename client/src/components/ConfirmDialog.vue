@@ -9,9 +9,9 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>()
       <h2>{{ title }}</h2>
       <p class="dialog__message">{{ message }}</p>
       <div class="dialog__actions">
-        <button type="button" class="btn btn-ghost" @click="emit('cancel')">Cancel</button>
+        <button type="button" class="btn btn-ghost" @click="emit('cancel')">{{ $t('common.cancel') }}</button>
         <button type="button" class="btn btn-danger" @click="emit('confirm')">
-          {{ confirmLabel ?? 'Delete' }}
+          {{ confirmLabel ?? $t('common.delete') }}
         </button>
       </div>
     </div>

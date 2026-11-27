@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, ApiRequestError } from '../api.js'
+import { t } from '../i18n.js'
 import { useSessionStore } from '../stores/session.js'
 
 const session = useSessionStore()
@@ -19,7 +20,7 @@ const password = ref('')
 // Set by App.vue's session-expired handler (?expired=1) when a request
 // mid-session came back 401 -- distinct from a plain first-visit login
 // screen, so the user knows *why* they landed here.
-const error = ref<string | null>(route.query.expired ? 'Your session expired. Please sign in again.' : null)
+const error = ref<string | null>(route.query.expired ? t('login.sessionExpired') : null)
 const submitting = ref(false)
 
 function hasScheme(url: string): boolean {
@@ -44,7 +45,7 @@ async function onSubmit(): Promise<void> {
       await session.login('', username.value, password.value)
       await router.push({ name: 'calendar' })
     } catch (err) {
-      error.value = err instanceof ApiRequestError ? err.message : 'Could not sign in. Please try again.'
+      error.value = err instanceof ApiRequestError ? err.message : t('login.failed')
     } finally {
       submitting.value = false
     }
@@ -70,7 +71,7 @@ async function onSubmit(): Promise<void> {
         lastErr = err
       }
     }
-    error.value = lastErr instanceof ApiRequestError ? lastErr.message : 'Could not sign in. Please try again.'
+    error.value = lastErr instanceof ApiRequestError ? lastErr.message : t('login.failed')
   } finally {
     submitting.value = false
   }
@@ -87,30 +88,30 @@ async function onSubmit(): Promise<void> {
           <path d="M8 2.5v4M16 2.5v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
         </svg>
       </div>
-      <h1>Sign in</h1>
+      <h1>{{ $t('login.title') }}</h1>
       <p class="login__hint">
-        {{ fixedServerUrl ? 'Sign in with your account credentials.' : 'Connect with your CalDAV/CardDAV server address and account credentials.' }}
+        {{ fixedServerUrl ? $t('login.hintFixed') : $t('login.hintOpen') }}
       </p>
 
       <label v-if="!fixedServerUrl">
-        <span>Server URL</span>
-        <input v-model="serverUrl" type="text" placeholder="dav.example.com (https:// assumed)" required />
+        <span>{{ $t('login.serverUrl') }}</span>
+        <input v-model="serverUrl" type="text" :placeholder="$t('login.serverPlaceholder')" required />
       </label>
 
       <label>
-        <span>Username</span>
+        <span>{{ $t('login.username') }}</span>
         <input v-model="username" type="text" autocomplete="username" required :autofocus="fixedServerUrl || !!serverUrl" />
       </label>
 
       <label>
-        <span>Password</span>
+        <span>{{ $t('login.password') }}</span>
         <input v-model="password" type="password" autocomplete="current-password" required />
       </label>
 
       <p v-if="error" class="login__error">{{ error }}</p>
 
       <button type="submit" class="btn btn-primary login__submit" :disabled="submitting">
-        {{ submitting ? 'Signing in…' : 'Sign in' }}
+        {{ submitting ? $t('login.submitting') : $t('login.submit') }}
       </button>
     </form>
   </div>

@@ -2,6 +2,7 @@
 import type { PendingShare } from '@yourdav/shared'
 import { onMounted, ref } from 'vue'
 import { api, ApiRequestError } from '../api.js'
+import { t } from '../i18n.js'
 import { useCalendarsStore } from '../stores/calendars.js'
 
 const calendarsStore = useCalendarsStore()
@@ -53,7 +54,7 @@ async function accept(share: PendingShare): Promise<void> {
     pending.value = pending.value.filter((p) => p.pathOrToken !== share.pathOrToken)
     await calendarsStore.load()
   } catch (err) {
-    error.value = err instanceof ApiRequestError ? err.message : 'Failed to accept share'
+    error.value = err instanceof ApiRequestError ? err.message : t('pendingShares.acceptFailed')
   } finally {
     accepting.value = null
   }
@@ -64,11 +65,14 @@ onMounted(load)
 
 <template>
   <div v-if="pending.length > 0" class="pending-shares">
-    <h2 class="pending-shares__heading">Pending shares</h2>
+    <h2 class="pending-shares__heading">{{ $t('pendingShares.heading') }}</h2>
     <ul>
       <li v-for="share in pending" :key="share.pathOrToken" class="pending-shares__item">
-        <span class="pending-shares__label" :title="`${share.owner} shared &quot;${share.label}&quot;`">
-          <strong>{{ share.owner }}</strong> shared &quot;{{ share.label }}&quot;
+        <span class="pending-shares__label" :title="$t('pendingShares.shared', { owner: share.owner, label: share.label })">
+          <i18n-t keypath="pendingShares.shared" scope="global">
+            <template #owner><strong>{{ share.owner }}</strong></template>
+            <template #label>{{ share.label }}</template>
+          </i18n-t>
         </span>
         <div class="pending-shares__actions">
           <button
@@ -77,15 +81,15 @@ onMounted(load)
             :disabled="accepting === share.pathOrToken"
             @click="accept(share)"
           >
-            {{ accepting === share.pathOrToken ? 'Accepting…' : 'Accept' }}
+            {{ accepting === share.pathOrToken ? $t('pendingShares.accepting') : $t('pendingShares.accept') }}
           </button>
           <button
             type="button"
             class="btn btn-ghost pending-shares__dismiss"
-            title="Hide this invite without accepting it"
+            :title="$t('pendingShares.hideTitle')"
             @click="dismiss(share)"
           >
-            Dismiss
+            {{ $t('pendingShares.dismiss') }}
           </button>
         </div>
       </li>

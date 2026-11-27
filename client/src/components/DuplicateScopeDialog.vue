@@ -8,19 +8,19 @@ const emit = defineEmits<{ choose: [scope: DuplicateScope]; cancel: [] }>()
 <template>
   <div class="overlay" @click.self="emit('cancel')">
     <div class="dialog">
-      <h2>Duplicate recurring event</h2>
+      <h2>{{ $t('duplicateScope.title') }}</h2>
       <p class="dialog__hint">
-        “{{ summary || '(No title)' }}” repeats. What would you like to duplicate?
+        {{ $t('duplicateScope.hint', { summary: summary || $t('common.noTitle') }) }}
       </p>
       <div class="dialog__options">
         <button class="btn btn-secondary" @click="emit('choose', 'single')">
-          This occurrence as a one-off event
+          {{ $t('duplicateScope.single') }}
         </button>
         <button class="btn btn-secondary" @click="emit('choose', 'series')">
-          The whole series (copy the repeat rule)
+          {{ $t('duplicateScope.series') }}
         </button>
       </div>
-      <button class="btn btn-ghost dialog__cancel" @click="emit('cancel')">Cancel</button>
+      <button class="btn btn-ghost dialog__cancel" @click="emit('cancel')">{{ $t('common.cancel') }}</button>
     </div>
   </div>
 </template>

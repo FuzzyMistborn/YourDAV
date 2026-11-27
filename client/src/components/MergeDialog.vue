@@ -2,6 +2,7 @@
 import type { Contact, ContactInput, LabeledValue, PostalAddress } from '@yourdav/shared'
 import { computed, reactive, ref } from 'vue'
 import { api } from '../api.js'
+import { t } from '../i18n.js'
 import { addressLines, autoName, formatDate, imageToDataUri, typeLabel } from '../lib/labels.js'
 import { useContactsStore } from '../stores/contacts.js'
 import { useSettingsStore } from '../stores/settings.js'
@@ -32,7 +33,7 @@ const other = computed(() => side(keep.value === 'a' ? 'b' : 'a'))
 
 interface Field {
   key: 'name' | 'nickname' | 'org' | 'title' | 'birthday' | 'anniversary' | 'notes'
-  label: string
+  labelKey: string
   /** What is compared and shown for a card. */
   text: (c: Contact) => string
   /** What counts as "the same" on both cards. */
@@ -40,18 +41,18 @@ interface Field {
 }
 
 const FIELDS: Field[] = [
-  { key: 'name', label: 'Name', text: (c) => c.fullName, raw: (c) => JSON.stringify([c.name, c.fullName]) },
-  { key: 'nickname', label: 'Nickname', text: (c) => c.nickname, raw: (c) => c.nickname },
-  { key: 'org', label: 'Organization', text: (c) => c.org, raw: (c) => c.org },
-  { key: 'title', label: 'Job title', text: (c) => c.title, raw: (c) => c.title },
-  { key: 'birthday', label: 'Birthday', text: (c) => (c.birthday ? formatDate(c.birthday) : ''), raw: (c) => c.birthday },
+  { key: 'name', labelKey: 'common.name', text: (c) => c.fullName, raw: (c) => JSON.stringify([c.name, c.fullName]) },
+  { key: 'nickname', labelKey: 'contact.nickname', text: (c) => c.nickname, raw: (c) => c.nickname },
+  { key: 'org', labelKey: 'contact.org', text: (c) => c.org, raw: (c) => c.org },
+  { key: 'title', labelKey: 'contact.jobTitle', text: (c) => c.title, raw: (c) => c.title },
+  { key: 'birthday', labelKey: 'contact.birthday', text: (c) => (c.birthday ? formatDate(c.birthday) : ''), raw: (c) => c.birthday },
   {
     key: 'anniversary',
-    label: 'Anniversary',
+    labelKey: 'contact.anniversary',
     text: (c) => (c.anniversary ? formatDate(c.anniversary) : ''),
     raw: (c) => c.anniversary,
   },
-  { key: 'notes', label: 'Notes', text: (c) => c.notes, raw: (c) => c.notes },
+  { key: 'notes', labelKey: 'contact.notes', text: (c) => c.notes, raw: (c) => c.notes },
 ]
 
 // Default to the first card's value, falling back to the second's when it has none.
@@ -107,11 +108,11 @@ function entries(list: ListKey): Entry[] {
   return [...out.values()]
 }
 
-const LISTS: { key: ListKey; label: string }[] = [
-  { key: 'phones', label: 'Phone numbers' },
-  { key: 'emails', label: 'Email addresses' },
-  { key: 'urls', label: 'Websites' },
-  { key: 'addresses', label: 'Addresses' },
+const LISTS: { key: ListKey; labelKey: string }[] = [
+  { key: 'phones', labelKey: 'contact.phones' },
+  { key: 'emails', labelKey: 'contact.emails' },
+  { key: 'urls', labelKey: 'contact.urls' },
+  { key: 'addresses', labelKey: 'contact.addresses' },
 ]
 
 const listRows = computed(() => LISTS.map((l) => ({ ...l, entries: entries(l.key) })).filter((l) => l.entries.length > 0))
@@ -130,8 +131,8 @@ function tick(id: string, on: boolean): void {
 }
 
 function origin(from: Side[]): string {
-  if (from.length === 2) return 'both cards'
-  return bookName(side(from[0])) || (from[0] === keep.value ? 'kept card' : 'other card')
+  if (from.length === 2) return t('merge.bothCards')
+  return bookName(side(from[0])) || t(from[0] === keep.value ? 'merge.keptCard' : 'merge.otherCard')
 }
 
 // --- photo -----------------------------------------------------------------
@@ -145,7 +146,7 @@ async function photoValue(): Promise<string | null | undefined> {
   const src = side(photoChoice.value)
   if (src.id === survivor.value.id) return undefined
   const res = await fetch(api.photoUrl(src.addressBookId, src.href, src.etag), { credentials: 'include' })
-  if (!res.ok) throw new Error('Could not read the photo to merge')
+  if (!res.ok) throw new Error(t('merge.photoFailed'))
   const blob = await res.blob()
   return imageToDataUri(new File([blob], 'photo', { type: blob.type || 'image/jpeg' }))
 }
@@ -190,7 +191,7 @@ async function submit(): Promise<void> {
     if (photo !== undefined) input.photo = photo
     emit('merge', survivor.value, other.value, input)
   } catch (err) {
-    localError.value = err instanceof Error ? err.message : 'Could not prepare the merge'
+    localError.value = err instanceof Error ? err.message : t('merge.prepareFailed')
   } finally {
     preparing.value = false
   }
@@ -200,9 +201,9 @@ async function submit(): Promise<void> {
 <template>
   <div class="overlay" @click.self="emit('cancel')" @keydown.esc="emit('cancel')">
     <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="merge-title">
-      <h2 id="merge-title">Merge contacts</h2>
+      <h2 id="merge-title">{{ $t('merge.title') }}</h2>
       <p class="dialog__intro">
-        Choose what to keep. The merged contact is saved over the card you keep, and the other card is deleted.
+        {{ $t('merge.intro') }}
       </p>
 
       <div class="merge-grid merge-grid--head">
@@ -213,15 +214,15 @@ async function submit(): Promise<void> {
           <span class="merge-card__text">
             <strong>{{ side(s).fullName }}</strong>
             <small>{{ bookName(side(s)) }}</small>
-            <small class="merge-card__keep">{{ keep === s ? 'Keeping this card' : 'Will be deleted' }}</small>
+            <small class="merge-card__keep">{{ keep === s ? $t('merge.keeping') : $t('merge.willDelete') }}</small>
           </span>
         </label>
       </div>
 
       <div v-for="row in fieldRows" :key="row.f.key" class="merge-grid merge-row">
-        <span class="merge-row__label">{{ row.f.label }}</span>
+        <span class="merge-row__label">{{ $t(row.f.labelKey) }}</span>
         <template v-if="row.same">
-          <span class="merge-row__same">{{ row.f.text(a) }} <em>(same on both)</em></span>
+          <span class="merge-row__same">{{ row.f.text(a) }} <em>{{ $t('merge.same') }}</em></span>
         </template>
         <template v-else>
           <label v-for="s in ['a', 'b'] as const" :key="s" class="merge-row__option" :class="{ 'merge-row__option--off': !row.f.raw(side(s)) }">
@@ -232,7 +233,7 @@ async function submit(): Promise<void> {
       </div>
 
       <div v-if="anyPhoto" class="merge-grid merge-row">
-        <span class="merge-row__label">Photo</span>
+        <span class="merge-row__label">{{ $t('contact.photo') }}</span>
         <label v-for="s in ['a', 'b'] as const" :key="s" class="merge-row__option" :class="{ 'merge-row__option--off': !side(s).hasPhoto }">
           <input v-model="photoChoice" type="radio" name="photo" :value="s" :disabled="!side(s).hasPhoto" />
           <ContactAvatar v-if="side(s).hasPhoto" class="merge-row__thumb" :contact="side(s)" />
@@ -241,12 +242,12 @@ async function submit(): Promise<void> {
         <span />
         <label class="merge-row__option merge-row__option--span">
           <input v-model="photoChoice" type="radio" name="photo" value="none" />
-          <span class="merge-row__value">No photo</span>
+          <span class="merge-row__value">{{ $t('merge.noPhoto') }}</span>
         </label>
       </div>
 
       <section v-for="l in listRows" :key="l.key" class="merge-list">
-        <h3>{{ l.label }}</h3>
+        <h3>{{ $t(l.labelKey) }}</h3>
         <label v-for="e in l.entries" :key="e.id" class="merge-list__item">
           <input type="checkbox" :checked="isTicked(e.id)" @change="tick(e.id, ($event.target as HTMLInputElement).checked)" />
           <span class="merge-list__text">{{ e.text }}</span>
@@ -256,7 +257,7 @@ async function submit(): Promise<void> {
       </section>
 
       <section v-if="groups.length" class="merge-list">
-        <h3>Groups</h3>
+        <h3>{{ $t('contact.groups') }}</h3>
         <label v-for="g in groups" :key="g" class="merge-list__item">
           <input type="checkbox" :checked="isTicked(`group:${g}`)" @change="tick(`group:${g}`, ($event.target as HTMLInputElement).checked)" />
           <span class="merge-list__text">{{ g }}</span>
@@ -264,15 +265,14 @@ async function submit(): Promise<void> {
       </section>
 
       <p class="dialog__note">
-        Other details on the card you keep (custom fields, instant-message handles) are preserved. Those on the card that
-        is deleted are not carried over.
+        {{ $t('merge.note') }}
       </p>
       <p v-if="error || localError" class="dialog__error">{{ error || localError }}</p>
 
       <div class="dialog__actions">
-        <button type="button" class="btn btn-ghost" :disabled="saving || preparing" @click="emit('cancel')">Cancel</button>
+        <button type="button" class="btn btn-ghost" :disabled="saving || preparing" @click="emit('cancel')">{{ $t('common.cancel') }}</button>
         <button type="button" class="btn btn-primary" :disabled="saving || preparing" @click="submit">
-          {{ saving || preparing ? 'Merging…' : 'Merge' }}
+          {{ saving || preparing ? $t('merge.merging') : $t('merge.submit') }}
         </button>
       </div>
     </div>

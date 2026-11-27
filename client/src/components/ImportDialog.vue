@@ -2,6 +2,7 @@
 import type { Calendar } from '@yourdav/shared'
 import { computed, ref } from 'vue'
 import { api, ApiRequestError } from '../api.js'
+import { t } from '../i18n.js'
 import { useCalendarsStore } from '../stores/calendars.js'
 
 const calendarsStore = useCalendarsStore()
@@ -71,7 +72,7 @@ async function onSubmit(): Promise<void> {
     const ics = await file.value.text()
     let targetId = calendarId.value
     if (targetId === NEW_CALENDAR) {
-      const fallback = file.value.name.replace(/\.[^.]+$/, '') || 'Imported calendar'
+      const fallback = file.value.name.replace(/\.[^.]+$/, '') || t('import.fallbackName')
       const created = await calendarsStore.create(calendarNameFromIcs(ics, fallback), newColor.value)
       targetId = created.id
       // Retarget so a second click imports into this calendar rather than
@@ -79,16 +80,16 @@ async function onSubmit(): Promise<void> {
       calendarId.value = targetId
     }
     const result = await api.importIcs(targetId, ics)
-    resultText.value = `Imported ${result.imported} of ${result.total} event${result.total === 1 ? '' : 's'}.`
+    resultText.value = t('import.result', { imported: result.imported, total: result.total }, result.total)
     if (result.skipped > 0) {
-      resultText.value += ` ${result.skipped} exceeded the server's import limit and were skipped.`
+      resultText.value += ` ${t('import.skipped', { skipped: result.skipped })}`
     }
     emit('imported')
     // Close on a clean import; a partial failure stays open so the user can
     // read the "Imported N of M" count.
     if (result.imported === result.total) emit('close')
   } catch (err) {
-    error.value = err instanceof ApiRequestError ? err.message : 'Failed to import file.'
+    error.value = err instanceof ApiRequestError ? err.message : t('import.failed')
   } finally {
     submitting.value = false
   }
@@ -98,24 +99,24 @@ async function onSubmit(): Promise<void> {
 <template>
   <div class="overlay" @click.self="emit('close')">
     <form class="dialog" @submit.prevent="onSubmit">
-      <h2>Import events</h2>
-      <p class="dialog__hint">Import events from an .ics file into a calendar.</p>
+      <h2>{{ $t('import.title') }}</h2>
+      <p class="dialog__hint">{{ $t('import.hint') }}</p>
 
       <label class="field">
-        <span>Calendar</span>
+        <span>{{ $t('common.calendar') }}</span>
         <select v-model="calendarId">
-          <option :value="NEW_CALENDAR">New calendar (named from file)</option>
+          <option :value="NEW_CALENDAR">{{ $t('import.newCalendar') }}</option>
           <option v-for="cal in writableCalendars" :key="cal.id" :value="cal.id">{{ cal.displayName }}</option>
         </select>
       </label>
 
       <label v-if="calendarId === NEW_CALENDAR" class="field">
-        <span>Color</span>
+        <span>{{ $t('common.color') }}</span>
         <input v-model="newColor" type="color" class="color-input" />
       </label>
 
       <label class="field">
-        <span>File</span>
+        <span>{{ $t('import.file') }}</span>
         <input type="file" accept=".ics,text/calendar" required @change="onFileChange" />
       </label>
 
@@ -123,9 +124,9 @@ async function onSubmit(): Promise<void> {
       <p v-if="resultText" class="dialog__success">{{ resultText }}</p>
 
       <div class="dialog__actions">
-        <button type="button" class="btn btn-ghost" @click="emit('close')">Close</button>
+        <button type="button" class="btn btn-ghost" @click="emit('close')">{{ $t('common.close') }}</button>
         <button type="submit" class="btn btn-primary" :disabled="!file || submitting">
-          {{ submitting ? 'Importing…' : 'Import' }}
+          {{ submitting ? $t('import.importing') : $t('import.submit') }}
         </button>
       </div>
     </form>

@@ -2,8 +2,9 @@
 import type { AlarmFields, Calendar, CalendarObject, EventFields } from '@yourdav/shared'
 import { DateTime } from 'luxon'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { t, weekdayName } from '../i18n.js'
 import { sortCalendars } from '../lib/calendarSort.js'
-import { REMINDER_PRESETS } from '../lib/reminders.js'
+import { reminderPresets } from '../lib/reminders.js'
 import { useSessionStore } from '../stores/session.js'
 import { useSettingsStore } from '../stores/settings.js'
 import TimeCombobox from './TimeCombobox.vue'
@@ -50,43 +51,35 @@ const REPEAT_BY_FREQ: Record<string, RepeatOption> = {
   MONTHLY: 'monthly',
   YEARLY: 'yearly',
 }
-const UNIT_LABELS: Record<Exclude<RepeatOption, 'none'>, [string, string]> = {
-  daily: ['day', 'days'],
-  weekly: ['week', 'weeks'],
-  monthly: ['month', 'months'],
-  yearly: ['year', 'years'],
-}
-
 const WEEKDAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'] as const
 type WeekdayCode = (typeof WEEKDAY_CODES)[number]
-const WEEKDAY_BUTTON_LABELS: Record<WeekdayCode, string> = {
-  SU: 'Su',
-  MO: 'Mo',
-  TU: 'Tu',
-  WE: 'We',
-  TH: 'Th',
-  FR: 'Fr',
-  SA: 'Sa',
+// Names come from Intl in the active language: the two-letter buttons
+// ("Su", "Di"), the short names in the repeat summary ("Sun", "dim."), and
+// the style the "on the Nth weekday" option uses (see repeat.monthlyWeekdayStyle).
+function weekdayButtonLabel(code: WeekdayCode): string {
+  const name = weekdayName(WEEKDAY_CODES.indexOf(code))
+  return name.charAt(0).toLocaleUpperCase() + name.charAt(1)
 }
-const WEEKDAY_SHORT_NAMES: Record<WeekdayCode, string> = {
-  SU: 'Sun',
-  MO: 'Mon',
-  TU: 'Tue',
-  WE: 'Wed',
-  TH: 'Thu',
-  FR: 'Fri',
-  SA: 'Sat',
+function weekdayShortName(code: WeekdayCode): string {
+  return weekdayName(WEEKDAY_CODES.indexOf(code))
+}
+function monthlyWeekdayName(code: WeekdayCode): string {
+  return weekdayName(WEEKDAY_CODES.indexOf(code), t('repeat.monthlyWeekdayStyle') === 'long' ? 'long' : 'short')
 }
 // Luxon's DateTime.weekday is ISO-8601: 1 = Monday ... 7 = Sunday.
 const ISO_WEEKDAY_TO_CODE: WeekdayCode[] = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 
 type MonthlyMode = 'dayOfMonth' | 'weekday'
-const MONTHLY_ORDINAL_LABELS: Record<number, string> = {
-  1: 'first',
-  2: 'second',
-  3: 'third',
-  4: 'fourth',
-  '-1': 'last',
+const MONTHLY_ORDINAL_KEYS: Record<number, string> = {
+  1: 'repeat.ordinal.first',
+  2: 'repeat.ordinal.second',
+  3: 'repeat.ordinal.third',
+  4: 'repeat.ordinal.fourth',
+  '-1': 'repeat.ordinal.last',
+}
+function ordinalLabel(ordinal: number): string {
+  const key = MONTHLY_ORDINAL_KEYS[ordinal]
+  return key ? t(key) : String(ordinal)
 }
 // -1 means "last" (RRULE's own convention for a negative BYDAY ordinal).
 const MONTHLY_ORDINALS = [1, 2, 3, 4, -1] as const
@@ -251,7 +244,7 @@ const parsedRepeat = parseRepeat(source?.rrule ?? null, defaultUntil, defaultWee
 
 const form = reactive({
   calendarId: props.event?.calendarId ?? props.template?.calendarId ?? props.defaultCalendarId,
-  summary: props.event ? props.event.summary : props.template ? `Copy of ${props.template.summary}` : '',
+  summary: props.event ? props.event.summary : props.template ? t('event.copyOf', { summary: props.template.summary }) : '',
   description: source?.description ?? '',
   location: source?.location ?? '',
   allDay: initialAllDay,
@@ -358,8 +351,7 @@ const swatchColor = computed(
 
 const intervalUnitLabel = computed(() => {
   if (form.repeat === 'none' || form.repeat === 'custom') return ''
-  const [singular, plural] = UNIT_LABELS[form.repeat]
-  return form.repeatInterval === 1 ? singular : plural
+  return t(`repeat.unit.${form.repeat}`, form.repeatInterval)
 })
 
 function buildRrule(): string | null {
@@ -391,24 +383,24 @@ function buildRrule(): string | null {
 
 const repeatPreview = computed<string | null>(() => {
   if (form.repeat === 'none') return null
-  if (form.repeat === 'custom') return 'Custom recurrence rule (unchanged by this dialog).'
+  if (form.repeat === 'custom') return t('repeat.summary.custom')
 
-  let text = form.repeatInterval > 1 ? `Repeats every ${form.repeatInterval} ${intervalUnitLabel.value}` : `Repeats every ${intervalUnitLabel.value}`
+  let text = t(`repeat.summary.${form.repeat}`, { n: form.repeatInterval }, form.repeatInterval)
   if (form.repeat === 'weekly' && form.repeatWeekdays.length > 0) {
     const ordered = WEEKDAY_CODES.filter((c) => form.repeatWeekdays.includes(c))
-    text += ` on ${ordered.map((c) => WEEKDAY_SHORT_NAMES[c]).join(', ')}`
+    text += t('repeat.summary.onDays', { days: ordered.map((c) => weekdayShortName(c)).join(', ') })
   }
   if (form.repeat === 'monthly' && form.monthlyMode === 'weekday') {
-    text += ` on the ${MONTHLY_ORDINAL_LABELS[form.monthlyOrdinal] ?? form.monthlyOrdinal} ${WEEKDAY_SHORT_NAMES[form.monthlyWeekday]}`
+    text += t('repeat.summary.onNth', { ordinal: ordinalLabel(form.monthlyOrdinal), weekday: monthlyWeekdayName(form.monthlyWeekday) })
   }
   if (form.rdates.length > 0) {
-    text += `, plus ${form.rdates.length} extra date${form.rdates.length === 1 ? '' : 's'}`
+    text += t('repeat.summary.extra', { n: form.rdates.length }, form.rdates.length)
   }
   if (form.repeatEnd === 'count') {
-    text += `, ${form.repeatCount} time${form.repeatCount === 1 ? '' : 's'}`
+    text += t('repeat.summary.count', { n: form.repeatCount }, form.repeatCount)
   } else if (form.repeatEnd === 'until') {
     const until = DateTime.fromFormat(form.repeatUntil, 'yyyy-LL-dd')
-    text += until.isValid ? `, until ${until.toFormat('LLL d, yyyy')}` : ''
+    text += until.isValid ? t('repeat.summary.until', { date: until.toFormat(t('datetime.shortDate')) }) : ''
   }
   return `${text}.`
 })
@@ -417,24 +409,24 @@ const repeatPreview = computed<string | null>(() => {
 // lexicographically) so this doesn't need to touch DateTime at all.
 const validationError = computed<string | null>(() => {
   if (form.endDate < form.startDate) {
-    return form.allDay ? 'End date must be on or after the start date.' : 'End must be after start.'
+    return t(form.allDay ? 'validation.endDate' : 'validation.endAfterStart')
   }
   if (!form.allDay && form.endDate === form.startDate && form.endTime <= form.startTime) {
-    return 'End must be after start.'
+    return t('validation.endAfterStart')
   }
   if (form.repeat !== 'none' && form.repeat !== 'custom') {
     if (form.repeatEnd === 'count' && form.repeatCount < 1) {
-      return 'Occurrence count must be at least 1.'
+      return t('validation.count')
     }
     if (form.repeatEnd === 'until' && form.repeatUntil < form.startDate) {
-      return 'Recurrence end date must be on or after the start date.'
+      return t('validation.recurrenceEnd')
     }
     if (form.repeat === 'weekly' && form.repeatWeekdays.length === 0) {
-      return 'Select at least one day of the week.'
+      return t('validation.weekday')
     }
   }
   if (form.reminders.some((m) => m < 0 || m > 40320)) {
-    return 'Reminders must be between 0 minutes and 4 weeks before the event.'
+    return t('validation.reminders')
   }
   return null
 })
@@ -513,17 +505,17 @@ const writableCalendars = computed(() =>
 <template>
   <div class="overlay" @click.self="emit('close')">
     <form class="dialog" @submit.prevent="onSubmit" @keydown.esc="emit('close')">
-      <input ref="titleInput" v-model="form.summary" class="dialog__title" type="text" placeholder="Add title" required />
+      <input ref="titleInput" v-model="form.summary" class="dialog__title" type="text" :placeholder="$t('event.titlePlaceholder')" required />
 
       <div class="field-row">
         <label class="field">
-          <span>Calendar</span>
+          <span>{{ $t('common.calendar') }}</span>
           <select v-model="form.calendarId">
             <option v-for="cal in writableCalendars" :key="cal.id" :value="cal.id">{{ cal.displayName }}</option>
           </select>
         </label>
         <label class="field field--color">
-          <span>Color</span>
+          <span>{{ $t('common.color') }}</span>
           <div class="color-row">
             <input
               type="color"
@@ -532,7 +524,7 @@ const writableCalendars = computed(() =>
               @input="form.color = ($event.target as HTMLInputElement).value"
             />
             <button v-if="form.color" type="button" class="btn btn-ghost color-reset" @click="form.color = ''">
-              Use calendar color
+              {{ $t('event.useCalendarColor') }}
             </button>
           </div>
         </label>
@@ -540,11 +532,11 @@ const writableCalendars = computed(() =>
 
       <label class="dialog__checkbox">
         <input v-model="form.allDay" type="checkbox" />
-        <span>All day</span>
+        <span>{{ $t('common.allDay') }}</span>
       </label>
 
       <div class="field-group">
-        <span class="field-group__label">Start</span>
+        <span class="field-group__label">{{ $t('event.start') }}</span>
         <div class="field-row">
           <input v-model="form.startDate" type="date" required />
           <TimeCombobox v-if="!form.allDay" v-model="form.startTime" />
@@ -552,7 +544,7 @@ const writableCalendars = computed(() =>
       </div>
 
       <div class="field-group">
-        <span class="field-group__label">End</span>
+        <span class="field-group__label">{{ $t('event.end') }}</span>
         <div class="field-row">
           <input v-model="form.endDate" type="date" required />
           <TimeCombobox v-if="!form.allDay" v-model="form.endTime" />
@@ -560,27 +552,27 @@ const writableCalendars = computed(() =>
       </div>
 
       <label v-if="!form.allDay" class="field">
-        <span>Time zone</span>
+        <span>{{ $t('event.timeZone') }}</span>
         <select v-model="form.timezone">
           <option v-for="tz in TIMEZONES" :key="tz" :value="tz">{{ tz }}</option>
         </select>
       </label>
 
       <label class="field">
-        <span>Repeat</span>
+        <span>{{ $t('repeat.label') }}</span>
         <select v-model="form.repeat">
-          <option value="none">Does not repeat</option>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-          <option value="yearly">Yearly</option>
-          <option v-if="form.repeat === 'custom'" value="custom" disabled>Custom (unsupported here)</option>
+          <option value="none">{{ $t('repeat.none') }}</option>
+          <option value="daily">{{ $t('repeat.daily') }}</option>
+          <option value="weekly">{{ $t('repeat.weekly') }}</option>
+          <option value="monthly">{{ $t('repeat.monthly') }}</option>
+          <option value="yearly">{{ $t('repeat.yearly') }}</option>
+          <option v-if="form.repeat === 'custom'" value="custom" disabled>{{ $t('repeat.customOption') }}</option>
         </select>
       </label>
 
       <template v-if="form.repeat !== 'none' && form.repeat !== 'custom'">
         <div class="field-group">
-          <span class="field-group__label">Every</span>
+          <span class="field-group__label">{{ $t('repeat.every') }}</span>
           <div class="field-row field-row--tight">
             <input v-model.number="form.repeatInterval" type="number" min="1" max="365" class="repeat-interval" />
             <span class="repeat-unit">{{ intervalUnitLabel }}</span>
@@ -588,7 +580,7 @@ const writableCalendars = computed(() =>
         </div>
 
         <div v-if="form.repeat === 'weekly'" class="field-group">
-          <span class="field-group__label">On</span>
+          <span class="field-group__label">{{ $t('repeat.onWeekly') }}</span>
           <div class="weekday-row">
             <button
               v-for="code in WEEKDAY_CODES"
@@ -598,49 +590,49 @@ const writableCalendars = computed(() =>
               :class="{ 'weekday-btn--active': form.repeatWeekdays.includes(code) }"
               @click="toggleWeekday(code)"
             >
-              {{ WEEKDAY_BUTTON_LABELS[code] }}
+              {{ weekdayButtonLabel(code) }}
             </button>
           </div>
         </div>
 
         <div v-if="form.repeat === 'monthly'" class="field-group">
-          <span class="field-group__label">On</span>
+          <span class="field-group__label">{{ $t('repeat.onMonthly') }}</span>
           <label class="repeat-end-option">
             <input v-model="form.monthlyMode" type="radio" value="dayOfMonth" />
-            <span>Day {{ form.startDate ? DateTime.fromFormat(form.startDate, 'yyyy-LL-dd').day : '' }} of the month</span>
+            <span>{{ $t('repeat.dayOfMonth', { day: form.startDate ? DateTime.fromFormat(form.startDate, 'yyyy-LL-dd').day : '' }) }}</span>
           </label>
           <label class="repeat-end-option monthly-weekday-option">
             <input v-model="form.monthlyMode" type="radio" value="weekday" />
-            <span>The</span>
+            <span>{{ $t('repeat.the') }}</span>
             <select v-model.number="form.monthlyOrdinal" :disabled="form.monthlyMode !== 'weekday'">
-              <option v-for="ord in MONTHLY_ORDINALS" :key="ord" :value="ord">{{ MONTHLY_ORDINAL_LABELS[ord] }}</option>
+              <option v-for="ord in MONTHLY_ORDINALS" :key="ord" :value="ord">{{ ordinalLabel(ord) }}</option>
             </select>
             <select v-model="form.monthlyWeekday" :disabled="form.monthlyMode !== 'weekday'">
-              <option v-for="code in WEEKDAY_CODES" :key="code" :value="code">{{ WEEKDAY_SHORT_NAMES[code] }}</option>
+              <option v-for="code in WEEKDAY_CODES" :key="code" :value="code">{{ monthlyWeekdayName(code) }}</option>
             </select>
           </label>
         </div>
 
         <div class="field-group">
-          <span class="field-group__label">Extra dates</span>
+          <span class="field-group__label">{{ $t('repeat.extraDates') }}</span>
           <div v-for="(date, index) in form.rdates" :key="index" class="reminder-row">
             <input v-model="form.rdates[index]" type="date" />
-            <button type="button" class="icon-remove-btn" title="Remove date" @click="removeRdate(index)">×</button>
+            <button type="button" class="icon-remove-btn" :title="$t('repeat.removeDate')" @click="removeRdate(index)">×</button>
           </div>
           <button type="button" class="btn btn-ghost reminder-add" @click="addRdate">
-            <span class="icon-add-btn" aria-hidden="true">+</span> Add extra date
+            <span class="icon-add-btn" aria-hidden="true">+</span> {{ $t('repeat.addDate') }}
           </button>
         </div>
 
         <div class="field-group">
-          <span class="field-group__label">Ends</span>
+          <span class="field-group__label">{{ $t('repeat.ends') }}</span>
           <label class="repeat-end-option">
             <input v-model="form.repeatEnd" type="radio" value="never" />
-            <span>Never</span>
+            <span>{{ $t('repeat.never') }}</span>
           </label>
           <label class="repeat-end-option">
             <input v-model="form.repeatEnd" type="radio" value="count" />
-            <span>After</span>
+            <span>{{ $t('repeat.after') }}</span>
             <input
               v-model.number="form.repeatCount"
               type="number"
@@ -649,11 +641,11 @@ const writableCalendars = computed(() =>
               class="repeat-count"
               :disabled="form.repeatEnd !== 'count'"
             />
-            <span>occurrence(s)</span>
+            <span>{{ $t('repeat.occurrences') }}</span>
           </label>
           <label class="repeat-end-option">
             <input v-model="form.repeatEnd" type="radio" value="until" />
-            <span>On</span>
+            <span>{{ $t('repeat.endOn') }}</span>
             <input v-model="form.repeatUntil" type="date" :disabled="form.repeatEnd !== 'until'" />
           </label>
         </div>
@@ -663,41 +655,41 @@ const writableCalendars = computed(() =>
       <p v-else-if="form.repeat === 'custom'" class="repeat-preview">{{ repeatPreview }}</p>
 
       <div class="field-group">
-        <span class="field-group__label">Reminders</span>
+        <span class="field-group__label">{{ $t('event.reminders') }}</span>
         <div v-for="(minutes, index) in form.reminders" :key="index" class="reminder-row">
           <select v-model.number="form.reminders[index]">
-            <option v-for="preset in REMINDER_PRESETS" :key="preset.minutes" :value="preset.minutes">
+            <option v-for="preset in reminderPresets()" :key="preset.minutes" :value="preset.minutes">
               {{ preset.label }}
             </option>
           </select>
-          <button type="button" class="icon-remove-btn" title="Remove reminder" @click="removeReminder(index)">
+          <button type="button" class="icon-remove-btn" :title="$t('event.removeReminder')" @click="removeReminder(index)">
             ×
           </button>
         </div>
         <button type="button" class="btn btn-ghost reminder-add" @click="addReminder">
-          <span class="icon-add-btn" aria-hidden="true">+</span> Add reminder
+          <span class="icon-add-btn" aria-hidden="true">+</span> {{ $t('event.addReminder') }}
         </button>
       </div>
 
       <label class="field">
-        <span>Location</span>
-        <input v-model="form.location" type="text" placeholder="Optional" />
+        <span>{{ $t('event.location') }}</span>
+        <input v-model="form.location" type="text" :placeholder="$t('event.optional')" />
       </label>
 
       <label class="field">
-        <span>Description</span>
-        <textarea v-model="form.description" rows="3" placeholder="Optional" />
+        <span>{{ $t('event.description') }}</span>
+        <textarea v-model="form.description" rows="3" :placeholder="$t('event.optional')" />
       </label>
 
       <p v-if="validationError" class="dialog__error">{{ validationError }}</p>
 
       <div class="dialog__actions">
-        <button v-if="isEditing" type="button" class="btn btn-ghost" @click="emit('duplicate')">Duplicate</button>
+        <button v-if="isEditing" type="button" class="btn btn-ghost" @click="emit('duplicate')">{{ $t('popover.duplicate') }}</button>
         <button v-if="isEditing" type="button" class="btn btn-danger dialog__delete" @click="emit('remove')">
-          Delete
+          {{ $t('common.delete') }}
         </button>
-        <button type="button" class="btn btn-ghost" @click="emit('close')">Cancel</button>
-        <button type="submit" class="btn btn-primary" :disabled="!!validationError">Save</button>
+        <button type="button" class="btn btn-ghost" @click="emit('close')">{{ $t('common.cancel') }}</button>
+        <button type="submit" class="btn btn-primary" :disabled="!!validationError">{{ $t('common.save') }}</button>
       </div>
     </form>
   </div>

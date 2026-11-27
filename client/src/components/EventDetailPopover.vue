@@ -3,6 +3,7 @@ import type { CalendarObject } from '@yourdav/shared'
 import { DateTime } from 'luxon'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api.js'
+import { t } from '../i18n.js'
 import { triggerDownload } from '../lib/download.js'
 import { useSettingsStore } from '../stores/settings.js'
 
@@ -72,14 +73,15 @@ const timeRangeText = computed(() => {
     // end is CalDAV's exclusive end -- the last inclusive day is end - 1.
     const lastDay = end.minus({ days: 1 })
     return lastDay.hasSame(start, 'day')
-      ? start.toFormat('cccc, LLLL d, yyyy')
-      : `${start.toFormat('LLL d, yyyy')} – ${lastDay.toFormat('LLL d, yyyy')}`
+      ? start.toFormat(t('datetime.fullDate'))
+      : `${start.toFormat(t('datetime.shortDate'))} – ${lastDay.toFormat(t('datetime.shortDate'))}`
   }
 
   const timeFmt = settingsStore.timeFormat === '24h' ? 'HH:mm' : 'h:mm a'
+  const shortDay = t('datetime.shortDay')
   return start.hasSame(end, 'day')
-    ? `${start.toFormat('cccc, LLLL d')} · ${start.toFormat(timeFmt)} – ${end.toFormat(timeFmt)}`
-    : `${start.toFormat(`LLL d, ${timeFmt}`)} – ${end.toFormat(`LLL d, ${timeFmt}`)}`
+    ? `${start.toFormat(t('datetime.weekdayDay'))} · ${start.toFormat(timeFmt)} – ${end.toFormat(timeFmt)}`
+    : `${start.toFormat(`${shortDay}, ${timeFmt}`)} – ${end.toFormat(`${shortDay}, ${timeFmt}`)}`
 })
 
 // Only worth calling out when it differs from the viewer's own zone -- the
@@ -95,10 +97,10 @@ function onExport(): void {
 }
 
 function formatReminder(minutesBefore: number): string {
-  if (minutesBefore === 0) return 'At time of event'
-  if (minutesBefore % 1440 === 0) return `${minutesBefore / 1440} day${minutesBefore === 1440 ? '' : 's'} before`
-  if (minutesBefore % 60 === 0) return `${minutesBefore / 60} hour${minutesBefore === 60 ? '' : 's'} before`
-  return `${minutesBefore} min before`
+  if (minutesBefore === 0) return t('reminder.atTime')
+  if (minutesBefore % 1440 === 0) return t('reminder.days', minutesBefore / 1440)
+  if (minutesBefore % 60 === 0) return t('reminder.hours', minutesBefore / 60)
+  return t('reminder.minutes', { n: minutesBefore })
 }
 </script>
 
@@ -107,13 +109,13 @@ function formatReminder(minutesBefore: number): string {
     <div ref="popoverEl" class="popover" :style="style">
       <div class="popover__header">
         <span class="popover__dot" :style="{ backgroundColor: color }" />
-        <h3 class="popover__title">{{ event.summary || '(No title)' }}</h3>
-        <button type="button" class="popover__close" aria-label="Close" @click="emit('close')">×</button>
+        <h3 class="popover__title">{{ event.summary || $t('common.noTitle') }}</h3>
+        <button type="button" class="popover__close" :aria-label="$t('common.close')" @click="emit('close')">×</button>
       </div>
 
       <p class="popover__time">{{ timeRangeText }}</p>
       <p v-if="timezoneNote" class="popover__badge">🌐 {{ timezoneNote }}</p>
-      <p v-if="event.isRecurring" class="popover__badge">🔁 Recurring event</p>
+      <p v-if="event.isRecurring" class="popover__badge">🔁 {{ $t('popover.recurring') }}</p>
       <p v-for="(alarm, i) in event.alarms" :key="i" class="popover__badge">⏰ {{ formatReminder(alarm.minutesBefore) }}</p>
       <p v-if="event.location" class="popover__row">📍 {{ event.location }}</p>
       <p v-if="event.description" class="popover__description">{{ event.description }}</p>
@@ -121,24 +123,24 @@ function formatReminder(minutesBefore: number): string {
 
       <div class="popover__actions">
         <template v-if="!readOnly">
-          <button type="button" class="btn btn-danger popover__delete" @click="emit('delete')">Delete</button>
+          <button type="button" class="btn btn-danger popover__delete" @click="emit('delete')">{{ $t('common.delete') }}</button>
         </template>
-        <p v-else class="popover__badge popover__readonly">Read-only</p>
+        <p v-else class="popover__badge popover__readonly">{{ $t('popover.readOnly') }}</p>
         <!-- Subscription hrefs carry a "#uid" fragment (synthetic, not a
         real CalDAV object locator) -- exporting those isn't supported. -->
         <button
           v-if="!event.href.includes('#')"
           type="button"
           class="btn btn-ghost"
-          title="Export as .ics"
+          :title="$t('popover.exportTitle')"
           @click="onExport"
         >
-          Export
+          {{ $t('common.export') }}
         </button>
-        <button v-if="!readOnly" type="button" class="btn btn-ghost" title="Duplicate event" @click="emit('duplicate')">
-          Duplicate
+        <button v-if="!readOnly" type="button" class="btn btn-ghost" :title="$t('popover.duplicateTitle')" @click="emit('duplicate')">
+          {{ $t('popover.duplicate') }}
         </button>
-        <button v-if="!readOnly" type="button" class="btn btn-primary" @click="emit('edit')">Edit</button>
+        <button v-if="!readOnly" type="button" class="btn btn-primary" @click="emit('edit')">{{ $t('common.edit') }}</button>
       </div>
     </div>
   </Teleport>

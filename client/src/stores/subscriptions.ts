@@ -2,6 +2,7 @@ import type { CalendarObject } from '@yourdav/shared'
 import { defineStore } from 'pinia'
 import { reactive, ref } from 'vue'
 import { api, ApiRequestError } from '../api.js'
+import { t } from '../i18n.js'
 import { loadEnabledState, saveEnabledState } from '../lib/enabledState.js'
 
 export interface Subscription {
@@ -121,7 +122,7 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
           syncError.value = null
         } else {
           syncError.value =
-            err instanceof ApiRequestError ? err.message : 'Could not save subscriptions to the server'
+            err instanceof ApiRequestError ? err.message : t('subscriptions.saveFailed')
         }
       }
     })
@@ -234,7 +235,7 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
           byRange.value[rangeKey(sub.id, start, end)] = events.map((e) => ({ ...e, calendarId: sub.id }))
           delete errors[sub.id]
         } catch (err) {
-          errors[sub.id] = err instanceof Error ? err.message : 'Failed to load subscription'
+          errors[sub.id] = err instanceof Error ? err.message : t('subscriptions.loadFailed')
           byRange.value[rangeKey(sub.id, start, end)] = []
         }
       }),
