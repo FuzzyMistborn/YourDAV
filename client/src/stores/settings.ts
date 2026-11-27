@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { currentLocale, LANGUAGE_STORAGE_KEY, loadLanguageSetting, resolveLocale, setLocale, type LanguageSetting } from '../i18n.js'
 
 export type WeekStart = 'sunday' | 'monday'
 
@@ -81,17 +82,24 @@ function loadDefaultReminder(): number | null {
   return n === -1 ? null : n
 }
 
+// Until the user picks something, regional defaults follow the UI language:
+// French uses Monday-first weeks, a 24-hour clock and street-first addresses.
 function loadInitial(): WeekStart {
   const stored = localStorage.getItem(STORAGE_KEY)
-  return stored === 'monday' ? 'monday' : 'sunday'
+  if (stored === 'monday' || stored === 'sunday') return stored
+  return currentLocale() === 'fr' ? 'monday' : 'sunday'
 }
 
 function loadTimeFormat(): TimeFormat {
-  return localStorage.getItem(TIME_FORMAT_STORAGE_KEY) === '24h' ? '24h' : '12h'
+  const stored = localStorage.getItem(TIME_FORMAT_STORAGE_KEY)
+  if (stored === '24h' || stored === '12h') return stored
+  return currentLocale() === 'fr' ? '24h' : '12h'
 }
 
 function loadAddressFormat(): AddressFormat {
-  return localStorage.getItem(ADDRESS_FORMAT_STORAGE_KEY) === 'intl' ? 'intl' : 'us'
+  const stored = localStorage.getItem(ADDRESS_FORMAT_STORAGE_KEY)
+  if (stored === 'intl' || stored === 'us') return stored
+  return currentLocale() === 'fr' ? 'intl' : 'us'
 }
 
 function loadContactSortOrder(): ContactSortOrder {
@@ -121,6 +129,7 @@ function loadDefaultVisibleCalendarIds(): string[] {
 }
 
 export const useSettingsStore = defineStore('settings', () => {
+  const language = ref<LanguageSetting>(loadLanguageSetting())
   const weekStart = ref<WeekStart>(loadInitial())
   const defaultCalendarId = ref<string>(localStorage.getItem(DEFAULT_CALENDAR_STORAGE_KEY) ?? '')
   const defaultCalendarMode = ref<DefaultCalendarMode>(loadDefaultCalendarMode())
@@ -155,6 +164,12 @@ export const useSettingsStore = defineStore('settings', () => {
 
   // FullCalendar's firstDay option: 0 = Sunday, 1 = Monday.
   const firstDay = computed(() => (weekStart.value === 'monday' ? 1 : 0))
+
+  function setLanguage(value: LanguageSetting): void {
+    language.value = value
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, value)
+    setLocale(resolveLocale(value))
+  }
 
   function setWeekStart(value: WeekStart): void {
     weekStart.value = value
@@ -244,6 +259,8 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   return {
+    language,
+    setLanguage,
     weekStart,
     firstDay,
     setWeekStart,
