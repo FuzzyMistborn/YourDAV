@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import FullCalendar from '@fullcalendar/vue3'
+import frLocale from '@fullcalendar/vue3/locales/fr'
 import type {
   CalendarOptions,
   DateClickInfo,
@@ -41,6 +42,7 @@ import SettingsDialog from '../components/SettingsDialog.vue'
 import SubscriptionList from '../components/SubscriptionList.vue'
 import UndoToast from '../components/UndoToast.vue'
 import { api, ApiRequestError } from '../api.js'
+import { currentLocale, t } from '../i18n.js'
 import { useCalendarsStore } from '../stores/calendars.js'
 import { useEventsStore } from '../stores/events.js'
 import { useNotificationsStore } from '../stores/notifications.js'
@@ -233,7 +235,7 @@ async function loadVisibleRange(): Promise<void> {
     // surface that some calendar failed, not to discard the rest. Doesn't
     // clobber a more specific error already showing (a background
     // auto-refresh can land while one is up).
-    errorBanner.value ??= 'Some calendars failed to load. Showing what loaded successfully.'
+    errorBanner.value ??= t('calendar.loadFailed')
   }
 }
 
@@ -281,11 +283,11 @@ const duplicateTemplate = ref<{ event: CalendarObject; scope: DuplicateScope } |
 // a 'single' duplicate/paste strips all recurrence so it lands as a plain
 // one-off event.
 const duplicateTemplateObject = computed<CalendarObject | null>(() => {
-  const t = duplicateTemplate.value
-  if (!t) return null
-  return t.scope === 'series'
-    ? t.event
-    : { ...t.event, rrule: null, rdate: [], isRecurring: false, recurrenceId: null }
+  const tpl = duplicateTemplate.value
+  if (!tpl) return null
+  return tpl.scope === 'series'
+    ? tpl.event
+    : { ...tpl.event, rrule: null, rdate: [], isRecurring: false, recurrenceId: null }
 })
 
 function requestDuplicate(event: CalendarObject): void {
@@ -331,7 +333,7 @@ function onGlobalKeydown(e: KeyboardEvent): void {
     // let it into the clipboard in the first place.
     if (isReadOnlyEvent(detailEvent.value)) return
     clipboardStore.copy(detailEvent.value)
-    flashNotice('Event copied — press Ctrl/⌘-V to paste a copy')
+    flashNotice(t('calendar.eventCopied'))
   } else if (key === 'v' && clipboardStore.copied) {
     e.preventDefault()
     // Paste always lands as a one-off, even from a recurring source (the
@@ -355,7 +357,7 @@ const pendingScopeAction = ref<
   // a scope is chosen; cancelling (or a failed save) calls `revert`.
   | {
       kind: 'drop'
-      verb: 'Move' | 'Resize'
+      action: 'move' | 'resize'
       event: CalendarObject
       fields: EventFields
       shift: EventShift
@@ -416,7 +418,7 @@ function cancelPendingCreate(): void {
 
 function onSelect(arg: DateSelectInfo): void {
   if (writableEnabledCalendarIds.value.length === 0) {
-    errorBanner.value = 'No writable calendar is available -- enable or create one first.'
+    errorBanner.value = t('calendar.noWritableBanner')
     return
   }
   // The year overview is for navigating, not creating -- onDateClick handles it.
@@ -489,7 +491,7 @@ async function onCreateSave(calendarId: string, fields: EventFields): Promise<vo
     // force it explicitly so the new event shows up immediately.
     fullCalendarRef.value?.getApi().refetchEvents()
   } catch (err) {
-    errorBanner.value = err instanceof ApiRequestError ? err.message : 'Failed to create event.'
+    errorBanner.value = err instanceof ApiRequestError ? err.message : t('calendar.createFailed')
   }
 }
 
@@ -548,8 +550,8 @@ const conflictServerVersion = computed(() => {
   // on the previous day in any negative-offset zone (see EventDetailPopover).
   const start = DateTime.fromISO(e.start, { zone: e.allDay ? 'utc' : undefined })
   return {
-    title: e.summary || '(No title)',
-    detail: e.allDay ? start.toFormat('LLL d, yyyy') : start.toFormat('LLL d, h:mm a'),
+    title: e.summary || t('common.noTitle'),
+    detail: start.toFormat(t(e.allDay ? 'datetime.shortDate' : 'datetime.shortDateTime')),
   }
 })
 
@@ -571,7 +573,7 @@ async function doUpdate(
       calendarId,
       shift,
     })
-    offerEditUndo(event, calendarId, calendarId !== event.calendarId ? 'Moved' : 'Edited')
+    offerEditUndo(event, calendarId, calendarId !== event.calendarId ? 'moved' : 'edited')
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 412) {
       await eventsStore.reloadLastRange()
@@ -580,7 +582,7 @@ async function doUpdate(
       return
     }
     onError?.()
-    errorBanner.value = err instanceof ApiRequestError ? err.message : 'Failed to save event.'
+    errorBanner.value = err instanceof ApiRequestError ? err.message : t('calendar.saveFailed')
   }
 }
 
@@ -608,7 +610,7 @@ async function doDelete(event: CalendarObject, scope: EditScope): Promise<void> 
     })
     if (snapshotIcs) {
       const ics = snapshotIcs
-      undoStore.offer(`Deleted “${event.summary || '(No title)'}”`, async () => {
+      undoStore.offer(t('undo.message.deleted', { title: event.summary || t('common.noTitle') }), async () => {
         await eventsStore.restoreEvent(event.calendarId, event.uid, ics, remaining)
         fullCalendarRef.value?.getApi().refetchEvents()
       })
@@ -620,7 +622,7 @@ async function doDelete(event: CalendarObject, scope: EditScope): Promise<void> 
       pendingConflict.value = { kind: 'delete', event, scope }
       return
     }
-    errorBanner.value = err instanceof ApiRequestError ? err.message : 'Failed to delete event.'
+    errorBanner.value = err instanceof ApiRequestError ? err.message : t('calendar.deleteFailed')
   }
 }
 
@@ -716,12 +718,12 @@ function toFields(event: CalendarObject, start: string, end: string): EventField
 // (looked up from the cache, which reloadLastRange has already refreshed
 // by the time this runs). Recurring events are skipped -- reverting them
 // correctly needs an edit-scope choice, out of scope for this toast.
-function offerEditUndo(before: CalendarObject, newCalendarId: string, verb: string): void {
+function offerEditUndo(before: CalendarObject, newCalendarId: string, action: 'edited' | 'moved' | 'resized'): void {
   if (before.isRecurring) return
   const fresh = eventsStore.findEvent(newCalendarId, before.uid, null)
   if (!fresh) return
   const movedCalendars = newCalendarId !== before.calendarId
-  undoStore.offer(`${verb} “${before.summary || '(No title)'}”`, async () => {
+  undoStore.offer(t(`undo.message.${action}`, { title: before.summary || t('common.noTitle') }), async () => {
     await eventsStore.updateEvent(fresh.calendarId, fresh.uid, {
       href: fresh.href,
       etag: fresh.etag,
@@ -751,7 +753,7 @@ async function onEventDrop(arg: EventDropInfo): Promise<void> {
     const days = (arg.delta.years ?? 0) * 365 + (arg.delta.months ?? 0) * 30 + (arg.delta.days ?? 0)
     pendingScopeAction.value = {
       kind: 'drop',
-      verb: 'Move',
+      action: 'move',
       event,
       fields: toFields(event, start, end),
       shift: { days, milliseconds: arg.delta.milliseconds ?? 0 },
@@ -767,10 +769,10 @@ async function onEventDrop(arg: EventDropInfo): Promise<void> {
       scope: 'all',
       recurrenceId: null,
     })
-    offerEditUndo(event, event.calendarId, 'Moved')
+    offerEditUndo(event, event.calendarId, 'moved')
   } catch (err) {
     arg.revert()
-    errorBanner.value = err instanceof ApiRequestError ? err.message : 'Failed to move event.'
+    errorBanner.value = err instanceof ApiRequestError ? err.message : t('calendar.moveFailed')
     await eventsStore.reloadLastRange()
   }
 }
@@ -791,7 +793,7 @@ async function onEventResize(arg: EventResizeDoneInfo): Promise<void> {
     // start and take the new length from `fields` (see EventShift).
     pendingScopeAction.value = {
       kind: 'drop',
-      verb: 'Resize',
+      action: 'resize',
       event,
       fields: toFields(event, start, end),
       shift: { days: 0, milliseconds: 0 },
@@ -807,16 +809,21 @@ async function onEventResize(arg: EventResizeDoneInfo): Promise<void> {
       scope: 'all',
       recurrenceId: null,
     })
-    offerEditUndo(event, event.calendarId, 'Resized')
+    offerEditUndo(event, event.calendarId, 'resized')
   } catch (err) {
     arg.revert()
-    errorBanner.value = err instanceof ApiRequestError ? err.message : 'Failed to resize event.'
+    errorBanner.value = err instanceof ApiRequestError ? err.message : t('calendar.resizeFailed')
     await eventsStore.reloadLastRange()
   }
 }
 
+// Module-level so FullCalendar gets the same array on every options recompute.
+const CALENDAR_LOCALES = [frLocale]
+
 const calendarOptions = computed<CalendarOptions>(() => ({
   plugins: [classicThemePlugin, dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin, multiMonthPlugin],
+  locales: CALENDAR_LOCALES,
+  locale: currentLocale(),
   initialView: settingsStore.defaultView,
   views: {
     listUpcoming: listUpcomingView,
@@ -828,12 +835,12 @@ const calendarOptions = computed<CalendarOptions>(() => ({
   },
   // v7 dropped the top-level/per-view `buttonText`; labels live in `buttons`.
   buttons: {
-    multiMonthYear: { text: 'Year' },
-    listUpcoming: { text: 'Agenda' },
+    multiMonthYear: { text: t('calendar.year') },
+    listUpcoming: { text: t('calendar.agenda') },
   },
   // The agenda view has nothing to show for an empty range -- spell that
   // out rather than leaving a bare gap.
-  noEventsText: 'No events in this range',
+  noEventsText: t('common.noEventsInRange'),
   height: '100%',
   expandRows: true,
   dayMaxEventRows: true,
@@ -886,7 +893,7 @@ async function onLogout(): Promise<void> {
 
 function onNewEventClick(): void {
   if (writableEnabledCalendarIds.value.length === 0) {
-    errorBanner.value = 'No writable calendar is available -- enable or create one first.'
+    errorBanner.value = t('calendar.noWritableBanner')
     return
   }
   const start = new Date()
@@ -1007,20 +1014,20 @@ watch(enabledSubscriptionIds, (ids, oldIds) => {
         <button
           class="btn btn-primary sidebar__new"
           :disabled="writableEnabledCalendarIds.length === 0"
-          :title="writableEnabledCalendarIds.length === 0 ? 'No writable calendar is available' : undefined"
+          :title="writableEnabledCalendarIds.length === 0 ? $t('calendar.noWritable') : undefined"
           @click="onNewEventClick"
         >
-          <span aria-hidden="true">+</span> New
+          <span aria-hidden="true">+</span> {{ $t('calendar.new') }}
         </button>
-        <button class="btn btn-secondary sidebar__import" title="Import .ics file" @click="showImportDialog = true">
-          Import
+        <button class="btn btn-secondary sidebar__import" :title="$t('calendar.importTitle')" @click="showImportDialog = true">
+          {{ $t('calendar.import') }}
         </button>
         <button
           class="btn btn-secondary sidebar__print"
-          title="Print the current view"
+          :title="$t('calendar.printTitle')"
           @click="printCalendar"
         >
-          Print
+          {{ $t('calendar.print') }}
         </button>
       </div>
 
@@ -1040,10 +1047,10 @@ watch(enabledSubscriptionIds, (ids, oldIds) => {
         class="btn btn-ghost sidebar__reminders-btn"
         @click="notificationsStore.requestPermission()"
       >
-        🔔 Enable reminder notifications
+        🔔 {{ $t('calendar.enableNotifications') }}
       </button>
       <p v-else-if="notificationsStore.permission === 'denied'" class="sidebar__reminders-note">
-        🔕 Reminder notifications blocked (check browser settings)
+        🔕 {{ $t('calendar.notificationsBlocked') }}
       </p>
 
       <div class="sidebar__user">
@@ -1055,12 +1062,12 @@ watch(enabledSubscriptionIds, (ids, oldIds) => {
           <button
             type="button"
             class="btn btn-ghost sidebar__settings-btn"
-            title="Settings"
+            :title="$t('settings.title')"
             @click="showSettingsDialog = true"
           >
-            <span aria-hidden="true">⚙️</span> Settings
+            <span aria-hidden="true">⚙️</span> {{ $t('settings.title') }}
           </button>
-          <button class="btn btn-ghost sidebar__signout" @click="onLogout">Sign out</button>
+          <button class="btn btn-ghost sidebar__signout" @click="onLogout">{{ $t('common.signOut') }}</button>
         </div>
       </div>
     </aside>
@@ -1156,15 +1163,15 @@ watch(enabledSubscriptionIds, (ids, oldIds) => {
 
     <ConfirmDialog
       v-if="confirmingDelete"
-      title="Delete event?"
-      :message="`Delete “${confirmingDelete.summary || '(No title)'}”?`"
+      :title="$t('calendar.confirmDeleteTitle')"
+      :message="$t('calendar.confirmDeleteMessage', { title: confirmingDelete.summary || $t('common.noTitle') })"
       @confirm="onConfirmDelete"
       @cancel="confirmingDelete = null"
     />
 
     <RecurrenceScopeDialog
       v-if="pendingScopeAction"
-      :verb="pendingScopeAction.kind === 'save' ? 'Save' : pendingScopeAction.kind === 'drop' ? pendingScopeAction.verb : 'Delete'"
+      :action="pendingScopeAction.kind === 'save' ? 'save' : pendingScopeAction.kind === 'drop' ? pendingScopeAction.action : 'delete'"
       @choose="onScopeChosen"
       @cancel="onScopeCancel"
     />
@@ -1212,6 +1219,17 @@ watch(enabledSubscriptionIds, (ids, oldIds) => {
   flex-shrink: 0;
   font-size: 0.85rem;
   padding: 0.5rem 0.7rem;
+}
+/* French labels ("Nouveau", "Importer", "Imprimer") don't fit on one row. */
+:global(html:lang(fr) .sidebar__actions) {
+  flex-wrap: wrap;
+}
+:global(html:lang(fr) .sidebar__new) {
+  flex-basis: 100%;
+}
+:global(html:lang(fr) .sidebar__import),
+:global(html:lang(fr) .sidebar__print) {
+  flex: 1;
 }
 .sidebar__brand {
   display: flex;

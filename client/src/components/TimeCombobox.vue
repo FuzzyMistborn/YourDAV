@@ -224,7 +224,7 @@ onBeforeUnmount(() => {
         >
           {{ option.label }}
         </li>
-        <li v-if="filteredOptions.length === 0" class="combobox__empty">No matches</li>
+        <li v-if="filteredOptions.length === 0" class="combobox__empty">{{ $t('search.noMatches') }}</li>
       </ul>
     </Teleport>
   </div>

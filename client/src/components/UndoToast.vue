@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '../i18n.js'
 import { useUndoStore } from '../stores/undo.js'
 
 const undo = useUndoStore()
@@ -9,7 +10,7 @@ async function onUndo(): Promise<void> {
     await undo.invoke()
   } catch (err) {
     undo.dismiss()
-    emit('error', err instanceof Error ? err.message : 'Failed to undo.')
+    emit('error', err instanceof Error ? err.message : t('undo.failed'))
   }
 }
 </script>
@@ -19,9 +20,9 @@ async function onUndo(): Promise<void> {
     <div v-if="undo.pending" class="undo-toast" role="status">
       <span class="undo-toast__msg">{{ undo.pending.message }}</span>
       <button type="button" class="undo-toast__action" :disabled="undo.running" @click="onUndo">
-        {{ undo.running ? 'Undoing…' : 'Undo' }}
+        {{ undo.running ? $t('undo.running') : $t('undo.action') }}
       </button>
-      <button type="button" class="undo-toast__close" aria-label="Dismiss" @click="undo.dismiss()">✕</button>
+      <button type="button" class="undo-toast__close" :aria-label="$t('common.dismiss')" @click="undo.dismiss()">✕</button>
     </div>
   </Transition>
 </template>

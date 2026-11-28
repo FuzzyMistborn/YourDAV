@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { DateTime } from 'luxon'
+import { currentLocale } from '../i18n.js'
 import { useSettingsStore } from '../stores/settings.js'
 
 const settingsStore = useSettingsStore()
@@ -37,6 +38,7 @@ function startOfWeek(dt: DateTime): DateTime {
 }
 
 const weekdayNames = computed(() => {
+  void currentLocale() // re-derive the names when the language changes
   const ref = startOfWeek(DateTime.fromObject({ year: 2024, month: 1, day: 7 })) // a Sunday
   return Array.from({ length: 7 }, (_, i) => ref.plus({ days: i }).toFormat('ccc'))
 })
@@ -165,7 +167,7 @@ function timeLabel(e: PrintEvent): string {
                 <li v-for="e in day.events" :key="e.id" class="pv-ev">
                   <span class="pv-ev__dot" :style="{ background: e.color }" aria-hidden="true" />
                   <span v-if="timeLabel(e)" class="pv-ev__time">{{ timeLabel(e) }}</span>
-                  <span class="pv-ev__title">{{ e.title || '(No title)' }}</span>
+                  <span class="pv-ev__title">{{ e.title || $t('common.noTitle') }}</span>
                 </li>
               </ul>
             </div>
@@ -184,8 +186,8 @@ function timeLabel(e: PrintEvent): string {
           <li v-if="day.events.length === 0" class="pv-col__empty">—</li>
           <li v-for="e in day.events" :key="e.id" class="pv-ev pv-ev--row">
             <span class="pv-ev__dot" :style="{ background: e.color }" aria-hidden="true" />
-            <span class="pv-ev__time">{{ e.allDay ? 'All day' : timeLabel(e) }}</span>
-            <span class="pv-ev__title">{{ e.title || '(No title)' }}</span>
+            <span class="pv-ev__time">{{ e.allDay ? $t('common.allDay') : timeLabel(e) }}</span>
+            <span class="pv-ev__title">{{ e.title || $t('common.noTitle') }}</span>
           </li>
         </ul>
       </section>
@@ -193,14 +195,14 @@ function timeLabel(e: PrintEvent): string {
 
     <!-- Agenda: flat date-grouped list -->
     <div v-else class="pv-agenda">
-      <p v-if="agendaGroups.length === 0" class="pv-agenda__empty">No events in this range</p>
+      <p v-if="agendaGroups.length === 0" class="pv-agenda__empty">{{ $t('common.noEventsInRange') }}</p>
       <section v-for="group in agendaGroups" :key="group.date.toMillis()" class="pv-agenda__group">
-        <h2 class="pv-agenda__date">{{ group.date.toFormat('cccc, LLLL d') }}</h2>
+        <h2 class="pv-agenda__date">{{ group.date.toFormat($t('datetime.weekdayDay')) }}</h2>
         <ul class="pv-agenda__events">
           <li v-for="e in group.events" :key="e.id" class="pv-ev pv-ev--row">
             <span class="pv-ev__dot" :style="{ background: e.color }" aria-hidden="true" />
-            <span class="pv-ev__time">{{ e.allDay ? 'All day' : timeLabel(e) }}</span>
-            <span class="pv-ev__title">{{ e.title || '(No title)' }}</span>
+            <span class="pv-ev__time">{{ e.allDay ? $t('common.allDay') : timeLabel(e) }}</span>
+            <span class="pv-ev__title">{{ e.title || $t('common.noTitle') }}</span>
           </li>
         </ul>
       </section>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from 'vue'
 import { ApiRequestError } from '../api.js'
+import { t } from '../i18n.js'
 import { useCalendarsStore } from '../stores/calendars.js'
 
 const props = defineProps<{ calendarId: string; calendarName: string; calendarColor: string; shared?: boolean }>()
@@ -25,7 +26,7 @@ async function submit(): Promise<void> {
     })
     emit('close')
   } catch (err) {
-    error.value = err instanceof ApiRequestError ? err.message : 'Failed to update calendar'
+    error.value = err instanceof ApiRequestError ? err.message : t('renameCalendar.failed')
   } finally {
     submitting.value = false
   }
@@ -35,23 +36,23 @@ async function submit(): Promise<void> {
 <template>
   <div class="overlay" @click.self="emit('close')">
     <div class="dialog">
-      <h2>{{ shared ? 'Rename shared calendar' : 'Rename calendar' }}</h2>
+      <h2>{{ shared ? $t('renameCalendar.titleShared') : $t('renameCalendar.title') }}</h2>
 
       <form @submit.prevent="submit">
         <label class="dialog__field">
-          <span>Name</span>
+          <span>{{ $t('common.name') }}</span>
           <input ref="nameInput" v-model="displayName" type="text" />
         </label>
-        <p v-if="shared" class="dialog__hint">Only changes the name and color you see; the owner's calendar is unchanged.</p>
+        <p v-if="shared" class="dialog__hint">{{ $t('renameCalendar.sharedHint') }}</p>
         <label class="dialog__field">
-          <span>Color</span>
+          <span>{{ $t('common.color') }}</span>
           <input v-model="color" type="color" class="dialog__swatch" />
         </label>
         <p v-if="error" class="dialog__error">{{ error }}</p>
         <div class="dialog__actions">
-          <button type="button" class="btn btn-ghost" @click="emit('close')">Cancel</button>
+          <button type="button" class="btn btn-ghost" @click="emit('close')">{{ $t('common.cancel') }}</button>
           <button type="submit" class="btn btn-primary" :disabled="submitting || !displayName.trim()">
-            {{ submitting ? 'Saving…' : 'Save' }}
+            {{ submitting ? $t('common.saving') : $t('common.save') }}
           </button>
         </div>
       </form>

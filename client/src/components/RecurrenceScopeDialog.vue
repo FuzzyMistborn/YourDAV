@@ -1,21 +1,21 @@
 <script setup lang="ts">
 import type { EditScope } from '@yourdav/shared'
 
-defineProps<{ verb: string }>()
+defineProps<{ action: 'save' | 'delete' | 'move' | 'resize' }>()
 const emit = defineEmits<{ choose: [scope: EditScope]; cancel: [] }>()
 </script>
 
 <template>
   <div class="overlay" @click.self="emit('cancel')">
     <div class="dialog">
-      <h2>{{ verb }} recurring event</h2>
-      <p class="dialog__hint">This event repeats. What would you like to {{ verb.toLowerCase() }}?</p>
+      <h2>{{ $t(`recurrenceScope.title.${action}`) }}</h2>
+      <p class="dialog__hint">{{ $t(`recurrenceScope.hint.${action}`) }}</p>
       <div class="dialog__options">
-        <button class="btn btn-secondary" @click="emit('choose', 'this')">This event</button>
-        <button class="btn btn-secondary" @click="emit('choose', 'thisAndFuture')">This and future events</button>
-        <button class="btn btn-secondary" @click="emit('choose', 'all')">All events</button>
+        <button class="btn btn-secondary" @click="emit('choose', 'this')">{{ $t('recurrenceScope.this') }}</button>
+        <button class="btn btn-secondary" @click="emit('choose', 'thisAndFuture')">{{ $t('recurrenceScope.thisAndFuture') }}</button>
+        <button class="btn btn-secondary" @click="emit('choose', 'all')">{{ $t('recurrenceScope.all') }}</button>
       </div>
-      <button class="btn btn-ghost dialog__cancel" @click="emit('cancel')">Cancel</button>
+      <button class="btn btn-ghost dialog__cancel" @click="emit('cancel')">{{ $t('common.cancel') }}</button>
     </div>
   </div>
 </template>

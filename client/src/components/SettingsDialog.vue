@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { LANGUAGES, t, type LanguageSetting } from '../i18n.js'
 import { sortCalendars } from '../lib/calendarSort.js'
-import { REMINDER_PRESETS } from '../lib/reminders.js'
+import { reminderPresets } from '../lib/reminders.js'
 import { useCalendarsStore } from '../stores/calendars.js'
 import { useSessionStore } from '../stores/session.js'
 import {
@@ -22,6 +23,11 @@ const emit = defineEmits<{ close: [] }>()
 const settingsStore = useSettingsStore()
 const session = useSessionStore()
 const calendarsStore = useCalendarsStore()
+
+const languageModel = computed<LanguageSetting>({
+  get: () => settingsStore.language,
+  set: (value) => settingsStore.setLanguage(value),
+})
 
 const weekStartModel = computed<WeekStart>({
   get: () => settingsStore.weekStart,
@@ -96,8 +102,8 @@ function hourLabel(hour: number): string {
 }
 
 function lengthLabel(minutes: number): string {
-  if (minutes < 60) return `${minutes} minutes`
-  return minutes === 60 ? '1 hour' : `${minutes / 60} hours`
+  if (minutes < 60) return t('settings.lengthMinutes', { n: minutes })
+  return t('settings.lengthHours', minutes / 60)
 }
 
 // Same "writable + currently enabled" restriction CalendarView applies when
@@ -151,38 +157,46 @@ function toggleDefaultVisible(id: string): void {
 <template>
   <div class="overlay" @click.self="emit('close')">
     <div class="dialog">
-      <h2>Settings</h2>
+      <h2>{{ $t('settings.title') }}</h2>
 
       <label class="dialog__field dialog__field--row">
-        <span>Theme</span>
+        <span>{{ $t('settings.language') }}</span>
+        <select v-model="languageModel">
+          <option value="auto">{{ $t('settings.languageAuto') }}</option>
+          <option v-for="lang in LANGUAGES" :key="lang.value" :value="lang.value">{{ lang.label }}</option>
+        </select>
+      </label>
+
+      <label class="dialog__field dialog__field--row">
+        <span>{{ $t('settings.theme') }}</span>
         <select v-model="themeModel">
-          <option value="auto">Match system</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
+          <option value="auto">{{ $t('settings.themeAuto') }}</option>
+          <option value="light">{{ $t('settings.themeLight') }}</option>
+          <option value="dark">{{ $t('settings.themeDark') }}</option>
         </select>
       </label>
 
       <label class="dialog__field dialog__field--row">
-        <span>Week starts on</span>
+        <span>{{ $t('settings.weekStart') }}</span>
         <select v-model="weekStartModel">
-          <option value="sunday">Sunday</option>
-          <option value="monday">Monday</option>
+          <option value="sunday">{{ $t('settings.sunday') }}</option>
+          <option value="monday">{{ $t('settings.monday') }}</option>
         </select>
       </label>
 
       <label class="dialog__field dialog__field--row">
-        <span>Default view</span>
+        <span>{{ $t('settings.defaultView') }}</span>
         <select v-model="defaultViewModel">
-          <option value="multiMonthYear">Year</option>
-          <option value="dayGridMonth">Month</option>
-          <option value="timeGridWeek">Week</option>
-          <option value="timeGridDay">Day</option>
-          <option value="listUpcoming">Agenda</option>
+          <option value="multiMonthYear">{{ $t('settings.viewYear') }}</option>
+          <option value="dayGridMonth">{{ $t('settings.viewMonth') }}</option>
+          <option value="timeGridWeek">{{ $t('settings.viewWeek') }}</option>
+          <option value="timeGridDay">{{ $t('settings.viewDay') }}</option>
+          <option value="listUpcoming">{{ $t('settings.viewAgenda') }}</option>
         </select>
       </label>
 
       <label class="dialog__field dialog__field--row">
-        <span>Day/week view opens at</span>
+        <span>{{ $t('settings.scrollHour') }}</span>
         <select v-model.number="scrollHourModel">
           <option v-for="hour in 24" :key="hour - 1" :value="hour - 1">{{ hourLabel(hour - 1) }}</option>
         </select>
@@ -190,57 +204,57 @@ function toggleDefaultVisible(id: string): void {
 
       <label class="dialog__checkbox dialog__field">
         <input v-model="showWeekendsModel" type="checkbox" />
-        Show weekends
+        {{ $t('settings.showWeekends') }}
       </label>
 
       <label class="dialog__checkbox dialog__field">
         <input v-model="weekNumbersModel" type="checkbox" />
-        Show week numbers
+        {{ $t('settings.showWeekNumbers') }}
       </label>
 
       <label class="dialog__checkbox dialog__field">
         <input v-model="nowIndicatorModel" type="checkbox" />
-        Show current-time line
+        {{ $t('settings.showNowIndicator') }}
       </label>
 
       <label class="dialog__field dialog__field--row">
-        <span>Sort calendars by</span>
+        <span>{{ $t('settings.sortCalendars') }}</span>
         <select v-model="calendarSortOrderModel">
-          <option value="server">Server order</option>
-          <option value="name-asc">Name (A→Z)</option>
-          <option value="name-desc">Name (Z→A)</option>
+          <option value="server">{{ $t('settings.sortServer') }}</option>
+          <option value="name-asc">{{ $t('settings.sortNameAsc') }}</option>
+          <option value="name-desc">{{ $t('settings.sortNameDesc') }}</option>
         </select>
       </label>
 
       <label class="dialog__field dialog__field--row">
-        <span>Time format</span>
+        <span>{{ $t('settings.timeFormat') }}</span>
         <select v-model="timeFormatModel">
-          <option value="12h">12-hour</option>
-          <option value="24h">24-hour</option>
+          <option value="12h">{{ $t('settings.time12') }}</option>
+          <option value="24h">{{ $t('settings.time24') }}</option>
         </select>
       </label>
 
       <label
         class="dialog__field dialog__field--row"
-        title="US: city, state ZIP. International: postal code before the city."
+        :title="$t('settings.addressFormatHint')"
       >
-        <span>Address format</span>
+        <span>{{ $t('settings.addressFormat') }}</span>
         <select v-model="addressFormatModel">
-          <option value="us">US</option>
-          <option value="intl">International</option>
+          <option value="us">{{ $t('settings.addressUs') }}</option>
+          <option value="intl">{{ $t('settings.addressIntl') }}</option>
         </select>
       </label>
 
-      <label class="dialog__field dialog__field--row" title="Which name contacts are sorted by first.">
-        <span>Sort contacts by</span>
+      <label class="dialog__field dialog__field--row" :title="$t('settings.sortContactsHint')">
+        <span>{{ $t('settings.sortContacts') }}</span>
         <select v-model="contactSortOrderModel">
-          <option value="last-first">Last name</option>
-          <option value="first-last">First name</option>
+          <option value="last-first">{{ $t('settings.lastName') }}</option>
+          <option value="first-last">{{ $t('settings.firstName') }}</option>
         </select>
       </label>
 
       <label v-if="writableEnabledCalendarIds.length > 0" class="dialog__field dialog__field--row">
-        <span>Default calendar</span>
+        <span>{{ $t('settings.defaultCalendar') }}</span>
         <select v-model="defaultCalendarModel">
           <option v-for="cal in sortedWritableEnabledCalendars" :key="cal.id" :value="cal.id">
             {{ cal.displayName }}
@@ -249,15 +263,15 @@ function toggleDefaultVisible(id: string): void {
       </label>
 
       <label v-if="writableEnabledCalendarIds.length > 0" class="dialog__field dialog__field--row">
-        <span>New events use</span>
+        <span>{{ $t('settings.newEventsUse') }}</span>
         <select v-model="defaultCalendarModeModel">
-          <option value="fixed">Default calendar</option>
-          <option value="last-used">Last used calendar</option>
+          <option value="fixed">{{ $t('settings.defaultCalendar') }}</option>
+          <option value="last-used">{{ $t('settings.lastUsedCalendar') }}</option>
         </select>
       </label>
 
       <label class="dialog__field dialog__field--row">
-        <span>Default event length</span>
+        <span>{{ $t('settings.eventLength') }}</span>
         <select v-model.number="defaultEventLengthModel">
           <option v-for="minutes in DEFAULT_EVENT_LENGTHS" :key="minutes" :value="minutes">
             {{ lengthLabel(minutes) }}
@@ -266,17 +280,17 @@ function toggleDefaultVisible(id: string): void {
       </label>
 
       <label class="dialog__field dialog__field--row">
-        <span>Default reminder</span>
+        <span>{{ $t('settings.reminder') }}</span>
         <select v-model="defaultReminderModel">
-          <option :value="null">None</option>
-          <option v-for="preset in REMINDER_PRESETS" :key="preset.minutes" :value="preset.minutes">
+          <option :value="null">{{ $t('settings.reminderNone') }}</option>
+          <option v-for="preset in reminderPresets()" :key="preset.minutes" :value="preset.minutes">
             {{ preset.label }}
           </option>
         </select>
       </label>
 
       <div v-if="calendarsStore.calendars.length > 0" class="dialog__field">
-        <span>Default visible calendars</span>
+        <span>{{ $t('settings.visibleCalendars') }}</span>
         <label v-for="cal in sortedCalendars" :key="cal.id" class="dialog__checkbox">
           <input
             type="checkbox"
@@ -288,8 +302,8 @@ function toggleDefaultVisible(id: string): void {
       </div>
 
       <div class="dialog__actions">
-        <span v-if="session.info?.version" class="dialog__version">Version {{ session.info.version }}</span>
-        <button type="button" class="btn btn-primary" @click="emit('close')">Done</button>
+        <span v-if="session.info?.version" class="dialog__version">{{ $t('settings.version', { version: session.info.version }) }}</span>
+        <button type="button" class="btn btn-primary" @click="emit('close')">{{ $t('common.done') }}</button>
       </div>
     </div>
   </div>

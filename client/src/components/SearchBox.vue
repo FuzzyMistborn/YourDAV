@@ -3,6 +3,7 @@ import type { CalendarObject } from '@yourdav/shared'
 import { DateTime } from 'luxon'
 import { ref } from 'vue'
 import { api } from '../api.js'
+import { t } from '../i18n.js'
 
 const emit = defineEmits<{ select: [event: CalendarObject] }>()
 
@@ -18,7 +19,7 @@ let requestSeq = 0
 function formatWhen(event: CalendarObject): string {
   // Same all-day/UTC-vs-local-zone fix as EventDetailPopover's timeRangeText.
   const dt = DateTime.fromISO(event.start, { zone: event.allDay ? 'utc' : undefined })
-  return event.allDay ? dt.toFormat('LLL d, yyyy') : dt.toFormat('LLL d, h:mm a')
+  return dt.toFormat(t(event.allDay ? 'datetime.shortDate' : 'datetime.shortDateTime'))
 }
 
 async function runSearch(): Promise<void> {
@@ -66,18 +67,18 @@ function onBlur(): void {
     <input
       v-model="query"
       type="search"
-      placeholder="Search events…"
+      :placeholder="$t('search.placeholder')"
       class="search-box__input"
       @input="onInput"
       @focus="results.length > 0 && (open = true)"
       @blur="onBlur"
     />
     <ul v-if="open" class="search-box__results">
-      <li v-if="loading" class="search-box__empty">Searching…</li>
-      <li v-else-if="results.length === 0" class="search-box__empty">No matches</li>
+      <li v-if="loading" class="search-box__empty">{{ $t('search.searching') }}</li>
+      <li v-else-if="results.length === 0" class="search-box__empty">{{ $t('search.noMatches') }}</li>
       <li v-for="event in results" :key="`${event.calendarId}:${event.uid}:${event.recurrenceId ?? ''}`">
         <button type="button" class="search-box__result" @mousedown.prevent="onSelect(event)">
-          <span class="search-box__result-title">{{ event.summary || '(No title)' }}</span>
+          <span class="search-box__result-title">{{ event.summary || $t('common.noTitle') }}</span>
           <span class="search-box__result-when">{{ formatWhen(event) }}</span>
         </button>
       </li>

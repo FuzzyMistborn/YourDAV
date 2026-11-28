@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Calendar } from '@yourdav/shared'
 import { computed, nextTick, ref } from 'vue'
+import { t } from '../i18n.js'
 import { sortCalendars } from '../lib/calendarSort.js'
 import { useCalendarsStore } from '../stores/calendars.js'
 import { useSettingsStore } from '../stores/settings.js'
@@ -60,7 +61,7 @@ async function submitNewCalendar(): Promise<void> {
     await store.create(newName.value.trim(), newColor.value)
     showNewForm.value = false
   } catch (err) {
-    createError.value = err instanceof Error ? err.message : 'Failed to create calendar'
+    createError.value = err instanceof Error ? err.message : t('calendarList.createFailed')
   } finally {
     creating.value = false
   }
@@ -72,8 +73,8 @@ async function submitNewCalendar(): Promise<void> {
     <PendingSharesList />
 
     <div class="calendar-list__header">
-      <h2 class="calendar-list__heading">Calendars</h2>
-      <button type="button" class="icon-add-btn" title="New calendar" @click="toggleNewForm">+</button>
+      <h2 class="calendar-list__heading">{{ $t('calendarList.heading') }}</h2>
+      <button type="button" class="icon-add-btn" :title="$t('calendarList.new')" @click="toggleNewForm">+</button>
     </div>
 
     <form
@@ -86,15 +87,15 @@ async function submitNewCalendar(): Promise<void> {
         ref="nameInput"
         v-model="newName"
         type="text"
-        placeholder="Calendar name"
+        :placeholder="$t('calendarList.namePlaceholder')"
         class="calendar-list__new-input"
         autofocus
       />
       <div class="calendar-list__new-row">
-        <input v-model="newColor" type="color" class="calendar-list__swatch" title="Color" />
-        <button type="button" class="btn btn-ghost" @click="closeNewForm">Cancel</button>
+        <input v-model="newColor" type="color" class="calendar-list__swatch" :title="$t('common.color')" />
+        <button type="button" class="btn btn-ghost" @click="closeNewForm">{{ $t('common.cancel') }}</button>
         <button type="submit" class="btn btn-primary" :disabled="creating || !newName.trim()">
-          {{ creating ? 'Creating…' : 'Create' }}
+          {{ creating ? $t('common.creating') : $t('common.create') }}
         </button>
       </div>
       <p v-if="createError" class="calendar-list__new-error">{{ createError }}</p>
@@ -109,12 +110,12 @@ async function submitNewCalendar(): Promise<void> {
         @rename="onRenameClick"
       />
       <li v-if="!store.loading && store.calendars.length === 0" class="calendar-list__empty">
-        No calendars found.
+        {{ $t('calendarList.empty') }}
       </li>
     </ul>
 
     <template v-if="sharedCalendars.length > 0">
-      <h2 class="calendar-list__heading calendar-list__heading--shared">Shared with me</h2>
+      <h2 class="calendar-list__heading calendar-list__heading--shared">{{ $t('calendarList.shared') }}</h2>
       <ul>
         <CalendarListItem v-for="cal in sharedCalendars" :key="cal.id" :cal="cal" @share="onShareClick" @rename="onRenameClick" />
       </ul>

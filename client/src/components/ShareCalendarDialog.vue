@@ -2,6 +2,7 @@
 import type { OwnedShare, SharePermission, ShareCalendarResult } from '@yourdav/shared'
 import { nextTick, onMounted, reactive, ref } from 'vue'
 import { api, ApiRequestError } from '../api.js'
+import { t } from '../i18n.js'
 
 const props = defineProps<{ calendarId: string; calendarName: string }>()
 const emit = defineEmits<{ close: [] }>()
@@ -30,7 +31,7 @@ async function loadShares(): Promise<void> {
     // silently rendering as "not shared with anyone", which would look
     // identical to a real empty state and hide a real failure.
     shares.value = []
-    sharesError.value = err instanceof ApiRequestError ? err.message : 'Could not load current shares'
+    sharesError.value = err instanceof ApiRequestError ? err.message : t('share.loadFailed')
   } finally {
     sharesLoading.value = false
   }
@@ -49,21 +50,21 @@ async function onPermissionChange(share: OwnedShare, newPermission: SharePermiss
     await api.updateSharePermission(props.calendarId, share.token, newPermission)
     share.permission = newPermission
   } catch (err) {
-    rowError[share.token] = err instanceof ApiRequestError ? err.message : 'Failed to update permission'
+    rowError[share.token] = err instanceof ApiRequestError ? err.message : t('share.permissionFailed')
   } finally {
     rowBusy[share.token] = false
   }
 }
 
 async function onRevoke(share: OwnedShare): Promise<void> {
-  if (!confirm(`Stop sharing with ${share.recipient}?`)) return
+  if (!confirm(t('share.confirmRevoke', { recipient: share.recipient }))) return
   rowBusy[share.token] = true
   delete rowError[share.token]
   try {
     await api.revokeShare(props.calendarId, share.token)
     shares.value = shares.value.filter((s) => s.token !== share.token)
   } catch (err) {
-    rowError[share.token] = err instanceof ApiRequestError ? err.message : 'Failed to revoke share'
+    rowError[share.token] = err instanceof ApiRequestError ? err.message : t('share.revokeFailed')
   } finally {
     rowBusy[share.token] = false
   }
@@ -80,7 +81,7 @@ async function submit(): Promise<void> {
     })
     await loadShares()
   } catch (err) {
-    error.value = err instanceof ApiRequestError ? err.message : 'Failed to share calendar'
+    error.value = err instanceof ApiRequestError ? err.message : t('share.failed')
   } finally {
     submitting.value = false
   }
@@ -90,44 +91,43 @@ async function submit(): Promise<void> {
 <template>
   <div class="overlay" @click.self="emit('close')">
     <div class="dialog">
-      <h2>Share &quot;{{ calendarName }}&quot;</h2>
+      <h2>{{ $t('share.title', { name: calendarName }) }}</h2>
 
       <div v-if="result">
         <p class="dialog__message">
-          Shared with <strong>{{ recipient }}</strong>.
-          <template v-if="result.pending">
-            Your side is set up, but this server (Radicale) requires the recipient to separately accept the
-            invite before it appears for them -- they'll see it under "Pending shares" the next time they log in.
-          </template>
-          <template v-else> They should see it the next time they load the app. </template>
+          <i18n-t keypath="share.sharedWith" scope="global">
+            <template #recipient><strong>{{ recipient }}</strong></template>
+          </i18n-t>
+          <template v-if="result.pending"> {{ $t('share.pendingNote') }} </template>
+          <template v-else> {{ $t('share.acceptedNote') }} </template>
         </p>
         <div class="dialog__actions">
-          <button type="button" class="btn btn-primary" @click="emit('close')">Done</button>
+          <button type="button" class="btn btn-primary" @click="emit('close')">{{ $t('common.done') }}</button>
         </div>
       </div>
 
       <template v-else>
         <div class="shares-list">
-          <span class="shares-list__label">Currently shared with</span>
-          <p v-if="sharesLoading" class="shares-list__empty">Loading…</p>
-          <p v-else-if="shares.length === 0" class="shares-list__empty">Not shared with anyone yet.</p>
+          <span class="shares-list__label">{{ $t('share.currentlySharedWith') }}</span>
+          <p v-if="sharesLoading" class="shares-list__empty">{{ $t('common.loading') }}</p>
+          <p v-else-if="shares.length === 0" class="shares-list__empty">{{ $t('share.empty') }}</p>
           <template v-else>
             <div v-for="share in shares" :key="share.token" class="shares-list__row">
               <span class="shares-list__recipient" :title="share.recipient">{{ share.recipient }}</span>
-              <span v-if="!share.accepted" class="shares-list__pending">pending</span>
+              <span v-if="!share.accepted" class="shares-list__pending">{{ $t('share.pending') }}</span>
               <select
                 :value="share.permission"
                 :disabled="rowBusy[share.token]"
                 @change="onPermissionChange(share, ($event.target as HTMLSelectElement).value as SharePermission)"
               >
-                <option value="readwrite">Can edit</option>
-                <option value="read">View only</option>
+                <option value="readwrite">{{ $t('share.canEdit') }}</option>
+                <option value="read">{{ $t('share.viewOnly') }}</option>
               </select>
               <button
                 type="button"
                 class="icon-remove-btn"
                 :disabled="rowBusy[share.token]"
-                title="Revoke access"
+                :title="$t('share.revokeAccess')"
                 @click="onRevoke(share)"
               >
                 ×
@@ -139,25 +139,24 @@ async function submit(): Promise<void> {
 
         <form @submit.prevent="submit">
         <p class="dialog__message">
-          Enter the recipient's username (Radicale) or email address (Baikal) -- this app tries both, since it
-          depends on which CalDAV server you're using.
+          {{ $t('share.recipientHint') }}
         </p>
         <label class="dialog__field">
-          <span>Recipient</span>
-          <input ref="recipientInput" v-model="recipient" type="text" placeholder="username or email" />
+          <span>{{ $t('share.recipient') }}</span>
+          <input ref="recipientInput" v-model="recipient" type="text" :placeholder="$t('share.recipientPlaceholder')" />
         </label>
         <label class="dialog__field">
-          <span>Access</span>
+          <span>{{ $t('share.access') }}</span>
           <select v-model="permission">
-            <option value="readwrite">Can edit</option>
-            <option value="read">View only</option>
+            <option value="readwrite">{{ $t('share.canEdit') }}</option>
+            <option value="read">{{ $t('share.viewOnly') }}</option>
           </select>
         </label>
         <p v-if="error" class="dialog__error">{{ error }}</p>
         <div class="dialog__actions">
-          <button type="button" class="btn btn-ghost" @click="emit('close')">Cancel</button>
+          <button type="button" class="btn btn-ghost" @click="emit('close')">{{ $t('common.cancel') }}</button>
           <button type="submit" class="btn btn-primary" :disabled="submitting || !recipient.trim()">
-            {{ submitting ? 'Sharing…' : 'Share' }}
+            {{ submitting ? $t('share.sharing') : $t('share.submit') }}
           </button>
         </div>
         </form>

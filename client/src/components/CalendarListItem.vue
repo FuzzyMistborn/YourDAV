@@ -2,6 +2,7 @@
 import type { Calendar } from '@yourdav/shared'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { api, ApiRequestError } from '../api.js'
+import { t } from '../i18n.js'
 import { triggerDownload } from '../lib/download.js'
 import { useCalendarsStore } from '../stores/calendars.js'
 
@@ -60,21 +61,21 @@ function onShareClick(cal: Calendar): void {
 // for these same two actions below.
 async function onDeleteClick(cal: Calendar): Promise<void> {
   closeMenu()
-  if (!confirm(`Delete "${cal.displayName}"? This removes it for everyone it's shared with.`)) return
+  if (!confirm(t('calendarItem.confirmDelete', { name: cal.displayName }))) return
   try {
     await store.deleteCalendar(cal.id)
   } catch (err) {
-    alert(err instanceof ApiRequestError ? err.message : `Failed to delete "${cal.displayName}".`)
+    alert(err instanceof ApiRequestError ? err.message : t('calendarItem.deleteFailed', { name: cal.displayName }))
   }
 }
 
 async function onUnsubscribeClick(cal: Calendar): Promise<void> {
   closeMenu()
-  if (!confirm(`Stop showing "${cal.displayName}"? The owner keeps their calendar; you can be re-invited later.`)) return
+  if (!confirm(t('calendarItem.confirmUnsubscribe', { name: cal.displayName }))) return
   try {
     await store.unsubscribeCalendar(cal.id)
   } catch (err) {
-    alert(err instanceof ApiRequestError ? err.message : `Failed to unsubscribe from "${cal.displayName}".`)
+    alert(err instanceof ApiRequestError ? err.message : t('calendarItem.unsubscribeFailed', { name: cal.displayName }))
   }
 }
 
@@ -94,7 +95,7 @@ function onResetColorClick(id: string): void {
       type="color"
       class="calendar-list__swatch"
       :value="store.colorFor(cal.id)"
-      :title="`Color for ${cal.displayName}`"
+      :title="$t('common.colorFor', { name: cal.displayName })"
       @input="onColorInput(cal.id, $event)"
       @change="onColorChange(cal.id, $event)"
     />
@@ -105,25 +106,25 @@ function onResetColorClick(id: string): void {
          reset color/delete-or-unsubscribe), too many to fit inline.
          SubscriptionList uses the same menu for consistency. -->
     <div ref="menuWrap" class="calendar-list__menu-wrap">
-      <button type="button" class="calendar-list__menu-btn" title="More options" @click="toggleMenu">⋯</button>
+      <button type="button" class="calendar-list__menu-btn" :title="$t('common.moreOptions')" @click="toggleMenu">⋯</button>
       <ul v-if="menuOpen" class="calendar-list__menu">
         <li>
-          <button type="button" @click="onRenameClick(cal)">✎ Rename</button>
+          <button type="button" @click="onRenameClick(cal)">✎ {{ $t('calendarItem.rename') }}</button>
         </li>
         <li v-if="!cal.isShared">
-          <button type="button" @click="onShareClick(cal)">↗ Share</button>
+          <button type="button" @click="onShareClick(cal)">↗ {{ $t('calendarItem.share') }}</button>
         </li>
         <li>
-          <button type="button" @click="onExportClick(cal)">⬇ Export .ics</button>
+          <button type="button" @click="onExportClick(cal)">⬇ {{ $t('calendarItem.export') }}</button>
         </li>
         <li v-if="cal.id in store.colorOverrides">
-          <button type="button" @click="onResetColorClick(cal.id)">↺ Reset color</button>
+          <button type="button" @click="onResetColorClick(cal.id)">↺ {{ $t('calendarItem.resetColor') }}</button>
         </li>
         <li v-if="!cal.isShared">
-          <button type="button" class="calendar-list__menu-danger" @click="onDeleteClick(cal)">✕ Delete</button>
+          <button type="button" class="calendar-list__menu-danger" @click="onDeleteClick(cal)">✕ {{ $t('common.delete') }}</button>
         </li>
         <li v-if="cal.isShared">
-          <button type="button" class="calendar-list__menu-danger" @click="onUnsubscribeClick(cal)">✕ Unsubscribe</button>
+          <button type="button" class="calendar-list__menu-danger" @click="onUnsubscribeClick(cal)">✕ {{ $t('calendarItem.unsubscribe') }}</button>
         </li>
       </ul>
     </div>

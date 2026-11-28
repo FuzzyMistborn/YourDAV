@@ -2,6 +2,7 @@ import type { AddressBook, Contact, ContactInput } from '@yourdav/shared'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api, ApiRequestError } from '../api.js'
+import { t } from '../i18n.js'
 import { useSettingsStore, type ContactSortOrder } from './settings.js'
 
 const FRESH_MS = 30_000
@@ -191,7 +192,7 @@ export const useContactsStore = defineStore('contacts', () => {
     try {
       const results = await Promise.allSettled(stale.map(async (id) => putContacts(id, await api.getContacts(id))))
       const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
-      if (failed) error.value = errorMessage(failed.reason, 'Failed to load contacts')
+      if (failed) error.value = errorMessage(failed.reason, t('contacts.loadFailed'))
     } finally {
       loading.value = false
       isRefreshing.value = false
@@ -238,7 +239,7 @@ export const useContactsStore = defineStore('contacts', () => {
         await loadContacts(target, force || target !== remembered)
       }
     } catch (err) {
-      error.value = errorMessage(err, 'Failed to load address books')
+      error.value = errorMessage(err, t('contacts.booksLoadFailed'))
     } finally {
       loading.value = false
       isRefreshing.value = false
@@ -316,7 +317,7 @@ export const useContactsStore = defineStore('contacts', () => {
     try {
       await deleteContact(other)
     } catch (err) {
-      throw new Error(`The contacts were merged, but the second card could not be deleted: ${errorMessage(err, 'unknown error')}`)
+      throw new Error(t('contacts.mergedDeleteFailed', { error: errorMessage(err, t('contacts.unknownError')) }))
     }
     selectedId.value = updated.id
     return updated

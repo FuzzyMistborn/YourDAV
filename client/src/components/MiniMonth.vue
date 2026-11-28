@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { DateTime } from 'luxon'
 import { computed, ref, watch } from 'vue'
+import { weekdayName } from '../i18n.js'
 
 const props = defineProps<{
   // 0 = Sunday .. 6 = Saturday, matching FullCalendar's firstDay.
@@ -29,7 +30,12 @@ watch(
 
 const weekdayLabels = computed(() => {
   // Luxon weekdays are 1=Mon..7=Sun; FullCalendar firstDay is 0=Sun..6=Sat.
-  const names = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+  // 2023-01-01 was a Sunday; the first two letters of the short weekday name
+  // in the active language ("Su"/"Mo", "Di"/"Lu").
+  const names = Array.from({ length: 7 }, (_, i) => {
+    const name = weekdayName(i)
+    return name.charAt(0).toLocaleUpperCase() + name.charAt(1)
+  })
   return Array.from({ length: 7 }, (_, i) => names[(props.firstDay + i) % 7])
 })
 
@@ -60,9 +66,9 @@ function pick(day: DateTime): void {
 <template>
   <div class="mini">
     <div class="mini__header">
-      <button type="button" class="mini__nav" aria-label="Previous month" @click="shift(-1)">‹</button>
+      <button type="button" class="mini__nav" :aria-label="$t('miniMonth.previous')" @click="shift(-1)">‹</button>
       <span class="mini__title">{{ viewMonth.toFormat('LLLL yyyy') }}</span>
-      <button type="button" class="mini__nav" aria-label="Next month" @click="shift(1)">›</button>
+      <button type="button" class="mini__nav" :aria-label="$t('miniMonth.next')" @click="shift(1)">›</button>
     </div>
     <div class="mini__grid">
       <span v-for="label in weekdayLabels" :key="label" class="mini__weekday">{{ label }}</span>

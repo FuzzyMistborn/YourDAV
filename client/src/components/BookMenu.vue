@@ -30,7 +30,7 @@ function pick(bookId: string, mode: 'move' | 'copy'): void {
   <Teleport to="body">
     <div v-if="open" ref="menu" class="popmenu" role="menu" :style="{ top: `${pos.top}px`, left: `${pos.left}px` }">
       <template v-if="moveTargets.length">
-        <div class="popmenu__heading">Move to</div>
+        <div class="popmenu__heading">{{ $t('bookMenu.moveTo') }}</div>
         <button
           v-for="b in moveTargets"
           :key="`m${b.id}`"
@@ -43,7 +43,7 @@ function pick(bookId: string, mode: 'move' | 'copy'): void {
         </button>
       </template>
       <template v-if="copyTargets.length">
-        <div class="popmenu__heading">Copy to</div>
+        <div class="popmenu__heading">{{ $t('bookMenu.copyTo') }}</div>
         <button
           v-for="b in copyTargets"
           :key="`c${b.id}`"
